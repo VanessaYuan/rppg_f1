@@ -19,6 +19,7 @@ from sklearn.preprocessing import MinMaxScaler
 from pandas import DataFrame
 import traceback
 
+
 from datetime import datetime
 from scipy.signal import find_peaks
 

@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 import subprocess
 
+
 def browse_file_1():
     filename = filedialog.askopenfilename(title="Select File 1")
     if filename:
