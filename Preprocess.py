@@ -19,7 +19,9 @@ from sklearn.preprocessing import MinMaxScaler
 from pandas import DataFrame
 import traceback
 
+import antropy as ant
 
+from scipy.spatial import KDTree
 from datetime import datetime
 from scipy.signal import find_peaks
 
@@ -504,8 +506,8 @@ def ppi_cal(peaks, sampling_rate = 15):
         ppi_values.append(ppi)
 
         # 根據 PPI 計算心率 (bpm)
-        hr = 60000 / ppi  # bpm = 60000 / PPI(ms)
-        heart_rates.append(hr)
+        # hr = 60000 / ppi  # bpm = 60000 / PPI(ms)
+        # heart_rates.append(hr)
 
     # 計算平均值
     avg_ppi = np.mean(ppi_values) if ppi_values else 0
@@ -707,58 +709,111 @@ def bp_features_cal(values, times, peaks,troughs, target_valleys, signal_data):
 
 
 """SampEn、ApEn計算"""
-# 計算距離：max norm（Chebyshev距離）
-def _max_dist(x_i, x_j):
-    return np.max(np.abs(x_i - x_j))
-
-# 建立 m 維向量序列
-def _embed_seq(x, m):
+def embed_seq(x, m):
+    """建立 m 維嵌入序列"""
     N = len(x)
     return np.array([x[i:i + m] for i in range(N - m + 1)])
 
-# Sample Entropy（SampEn）
-def sampen_cal(x, m, r):
-    N = len(x)
+def fast_sampen(x, m=2, r=None):
+    """使用 KD-Tree 加速的 SampEn 計算"""
     x = np.array(x)
-    Xm = _embed_seq(x, m)
-    Xm1 = _embed_seq(x, m + 1)
-    eps = 1e-10 #epsilon(最小常數) = 1e-10，避免分母為0
+    if r is None:
+        r = 0.2 * np.std(x)
+    eps = 1e-10  # 防止 log(0)
 
-    def _count_matches(X):
-        N_temp = len(X)
+    Xm = embed_seq(x, m)
+    Xm1 = embed_seq(x, m + 1)
+
+    def count_pairs(X):
+        tree = KDTree(X, leafsize=16)
         count = 0
-        for i in range(N_temp):
-            for j in range(i + 1, N_temp): # 不與自己比
-                if _max_dist(X[i], X[j]) <= r:
-                    count += 1
+        for i, xi in enumerate(X):
+            # 查找在距離 r 內的鄰居，排除自己
+            neighbors = tree.query_ball_point(xi, r, p=np.inf)
+            count += len(neighbors) - 1  # 不包含自己
         return count
 
-    B = _count_matches(Xm)
-    A = _count_matches(Xm1)
+    B = count_pairs(Xm)
+    A = count_pairs(Xm1)
 
-    if B == 0 or A == 0:
+    if B == 0:
         return np.inf
     else:
-        return -np.log( (A+ eps) /(B + eps))
+        return -np.log((A + eps) / (B + eps))
 
-# Approximate Entropy（ApEn）
-def apen_cal(x, m, r):
-    N = len(x)
+def fast_apen(x, m=2, r=None):
+    """使用 KD-Tree 加速的 ApEn 計算"""
     x = np.array(x)
-    Xm = _embed_seq(x, m)
-    Xm1 = _embed_seq(x, m + 1)
-    eps = 1e-10 #epsilon(最小常數) = 1e-10，避免 log(0)
+    if r is None:
+        r = 0.2 * np.std(x)
+    eps = 1e-10
 
-    def _phi(X):
-        N_temp = len(X)
-        C = np.zeros(N_temp)
-        for i in range(N_temp):
-            dist = np.array([_max_dist(X[i], X[j]) for j in range(N_temp)])
-            count = np.sum(dist <= r)
-            C[i] = count / N_temp if count > 0 else eps  # epsilon(最小常數) = 1e-10，避免 log(0)
-        return np.sum(np.log(C)) / N_temp
+    def phi(X):
+        N = len(X)
+        tree = KDTree(X, leafsize=16)
+        C = np.zeros(N)
+        for i, xi in enumerate(X):
+            neighbors = tree.query_ball_point(xi, r, p=np.inf)
+            C[i] = (len(neighbors)) / N  # 包含自己
+        C = np.where(C == 0, eps, C)
+        return np.sum(np.log(C)) / N
 
-    return _phi(Xm) - _phi(Xm1)
+    Xm = embed_seq(x, m)
+    Xm1 = embed_seq(x, m + 1)
+
+    return abs(phi(Xm) - phi(Xm1))
+# # 計算距離：max norm（Chebyshev距離）
+# def _max_dist(x_i, x_j):
+#     return np.max(np.abs(x_i - x_j))
+
+# # 建立 m 維向量序列
+# def _embed_seq(x, m):
+#     N = len(x)
+#     return np.array([x[i:i + m] for i in range(N - m + 1)])
+
+# # Sample Entropy（SampEn）
+# def sampen_cal(x, m, r):
+#     N = len(x)
+#     x = np.array(x)
+#     Xm = _embed_seq(x, m)
+#     Xm1 = _embed_seq(x, m + 1)
+#     eps = 1e-10 #epsilon(最小常數) = 1e-10，避免分母為0
+
+#     def _count_matches(X):
+#         N_temp = len(X)
+#         count = 0
+#         for i in range(N_temp):
+#             for j in range(i + 1, N_temp): # 不與自己比
+#                 if _max_dist(X[i], X[j]) <= r:
+#                     count += 1
+#         return count
+
+#     B = _count_matches(Xm)
+#     A = _count_matches(Xm1)
+
+#     if B == 0 or A == 0:
+#         return np.inf
+#     else:
+#         return -np.log( (A+ eps) /(B + eps))
+
+# # Approximate Entropy（ApEn）
+# def apen_cal(x, m, r):
+#     N = len(x)
+#     x = np.array(x)
+#     Xm = _embed_seq(x, m)
+#     Xm1 = _embed_seq(x, m + 1)
+#     eps = 1e-10 #epsilon(最小常數) = 1e-10，避免 log(0)
+
+#     def _phi(X):
+#         N_temp = len(X)
+#         C = np.zeros(N_temp)
+#         for i in range(N_temp):
+#             dist = np.array([_max_dist(X[i], X[j]) for j in range(N_temp)])
+#             count = np.sum(dist <= r)
+#             C[i] = count / N_temp if count > 0 else eps  # epsilon(最小常數) = 1e-10，避免 log(0)
+#         return np.sum(np.log(C)) / N_temp
+
+#     return _phi(Xm) - _phi(Xm1)
 
 
 """傅立葉+LF、HF計算"""
@@ -830,103 +885,10 @@ def lfhf_cal(fft_freq, fft_power):
     print(f"LF/HF Ratio: {lf_hf_ratio:.3f}")
 
     return nlf, nhf, lf_hf_ratio
-
+    
+    
 """傅立葉+HR計算"""
 def hr_cal(listTemp):
-
-    # 分解資料
-    values, timestamps = zip(*listTemp)  
-    values = np.array(values)
-    timestamps = np.array(timestamps)
-
-    # 計算取樣率
-    # duration = timestamps[-1] - timestamps[0]
-    # fps = len(timestamps) / duration
-    # print(f"\n自動推算 fps: {fps:.2f} Hz")
-    fps = 15
-
-    n = len(values)
-    raw2 = np.fft.rfft(values*100) # 放大振幅，不影響頻率
-    # fft_freq = float(fps) / n * np.arange(n / 2 + 1) # 手動算頻率軸(x軸)
-    fft_freq = np.fft.rfftfreq(n, d=1/fps) # 正頻率對應的頻率軸
-    fft_power = np.abs(raw2)**2
-
-    # 畫圖
-    plt.figure(figsize=(10, 4))
-    plt.plot(fft_freq, fft_power, color='blue')
-    plt.title("Frequency Domain (FFT)-HR")
-    plt.xlabel("Frequency (Hz)")
-    plt.ylabel("Amplitude")
-    plt.grid(True)
-    plt.xlim(0, 1)  # 可視範圍建議 0~1 Hz，若要分析 HR 可到 3~4 Hz
-    plt.tight_layout()
-    plt.show()
-
-    # 頻率範圍遮罩（針對 HR 分析）
-    hr_mask = (fft_freq >= 1) & (fft_freq <= 1.5)  # 約 60~90 BPM
-    
-    # 找主導頻率
-    if np.any(hr_mask):
-        peak_idx = np.argmax(fft_power[hr_mask])
-        peak_freq = fft_freq[hr_mask][peak_idx]
-        heart_rate_bpm = peak_freq * 60
-    else:
-        peak_freq = 0
-        heart_rate_bpm = -1  # 無法估算
-
-    print(f"Dominant Frequency: {peak_freq:.3f} Hz")
-
-    if heart_rate_bpm > 0:
-        print(f"心率: {heart_rate_bpm:.2f} BPM")
-    else:
-        print("心率: 無法估算（主頻為 0）")
-    
-    return heart_rate_bpm
-
-
-# ##############學長傅立葉 心率
-def fft_heartRate(listTemp):
-    import numpy as np
-    from scipy.fftpack import fft
-    import matplotlib.pyplot as plt
-
-    # 假設有一段 RPPG 訊號
-    fs = 15  # 採樣率 (Hz)，假設每秒 30 幀
-    # duration = 10  # 時間長度（秒）
-    # t = np.linspace(0, duration, duration * fs)
-    # # 模擬心率 75 BPM ≈ 1.25 Hz 的正弦波 + 一些雜訊
-    # signal = np.sin(2 * np.pi * 1.25 * t) + 0.2 * np.random.randn(len(t))
-
-    values, timestamps = zip(*listTemp)  # 這裡若錯就會爆出
-    
-    values = np.array(values)
-    timestamps = np.array(timestamps)
-
-    # ===== 頻域分析 =====
-    N = len(values)
-    freqs = np.fft.rfftfreq(N, d=1/fs)  # 頻率軸（Hz）
-    fft_values = np.abs(fft(values))[:len(freqs)]
-
-    # 限制頻率範圍（正常心跳 40~180 BPM ≈ 0.66~3 Hz）
-    valid_idx = (freqs >= 0.66) & (freqs <= 3.0)
-    valid_freqs = freqs[valid_idx]
-    valid_fft = fft_values[valid_idx]
-
-    # 找最大頻率對應心率
-    peak_freq = valid_freqs[np.argmax(valid_fft)]
-    heart_rate_bpm = peak_freq * 60  # Hz 轉換成 BPM
-
-    print(f"估計的心率：{heart_rate_bpm:.2f} BPM")
-
-    return heart_rate_bpm
-##############################################################
-
-
-
-    
-    
-"""傅立葉+HR計算22222222222222"""
-def hr_cal22222(listTemp):
 
     values, timestamps = zip(*listTemp)  
     values = np.array(values)
@@ -977,9 +939,9 @@ def hr_cal22222(listTemp):
     print(f"Dominant Frequency: {peak_freq:.3f} Hz")
 
     if bpm > 0:
-        print(f"心率2222222: {bpm:.2f} BPM")
+        print(f"心率: {bpm:.2f} BPM")
     else:
-        print("心率2222222: 無法估算（主頻為 0）")
+        print("心率: 無法估算（主頻為 0）")
     
     return bpm
     
@@ -1544,16 +1506,23 @@ def preProcessing_timeDomain(file_path_r:str):
 
     """計算近似商、樣本商"""
     try:
-        # 設定參數
+        # # 設定參數
         m = 2
         r = 0.15 * np.std(listTemp[:,0])
 
-        # 計算 ApEn 和 SampEn(data, m, r)
-        #減少 m(維度)（通常用 m=2 是較穩定的起點）
-        #適當增大 r(兩者距離)（建議設為 0.1~0.25 * std(x)）
+        # # 計算 ApEn 和 SampEn(data, m, r)
+        # #減少 m(維度)（通常用 m=2 是較穩定的起點）
+        # #適當增大 r(兩者距離)（建議設為 0.1~0.25 * std(x)）
         
-        apen = apen_cal(listTemp[:,0], m, r)
-        sampen = sampen_cal(listTemp[:,0], m, r)
+        apen = fast_apen(listTemp[:,0], m, r)
+        sampen = fast_sampen(listTemp[:,0], m, r)
+
+        # SampEn
+        # x 是時間序列，order=m 為維度，r 是容差參數（通常為 std(x) 的 0.1 ~ 0.25 倍）
+        # sampen = ant.sample_entropy(listTemp[:,0], order=m, r=r)
+
+        # # ApEn
+        # apen = ant.app_entropy(listTemp[:,0], order=m, r=r)
 
         print(f"Approximate Entropy (ApEn): {apen:.3f}")
         print(f"Sample Entropy (SampEn): {sampen:.3f}")
@@ -1727,24 +1696,10 @@ def preProcessing_freqDomain(file_path_r:str):
 
         """計算HR"""
         # 帶通(0.6-3)
-        listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.6, 3 ,2)
-        #plot_data(listTemp, "bandpass-HR")
-        # 傅立葉轉換+ HR計算
-        heart_rate_bpm1  = hr_cal(listTemp)
-        
-        """計算HR"""
-        # 帶通(0.6-3)
-        listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.6, 3 ,2)
-        #plot_data(listTemp, "bandpass-hrrrrr")
-        # 傅立葉轉換+ HR計算
-        heart_rate_bpm2 = fft_heartRate(listTemp)
-
-        """計算HR"""
-        # 帶通(0.6-3)
         listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 0.4 ,2)
         #plot_data(listTemp, "bandpass-hrrrrr")
         # 傅立葉轉換+ HR計算
-        heart_rate_bpm3 = hr_cal22222(listTemp)
+        heart_rate_bpm = hr_cal(listTemp)
     
     except Exception as e:
         print("Features Calculation fail"+ str(e))
@@ -1752,7 +1707,7 @@ def preProcessing_freqDomain(file_path_r:str):
     # 每次計算完一筆資料後
     freqFeatures = [
         nlf, nhf, lf_hf_ratio, 
-        heart_rate_bpm1 , heart_rate_bpm2, heart_rate_bpm3
+        heart_rate_bpm
     ]
     
     freqFeatures_list = []
@@ -1762,9 +1717,7 @@ def preProcessing_freqDomain(file_path_r:str):
           "\n nLF:",nlf,
           "\n nHF:", nhf,
           "\n LF/HF:",lf_hf_ratio,
-          "\n heart_rate1:", heart_rate_bpm1,
-          "\n heart_rate2:", heart_rate_bpm2,
-          "\n heart_rate3:", heart_rate_bpm3,
+          "\n heart_rate:", heart_rate_bpm,
           )
 
     return freqFeatures_list
