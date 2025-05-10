@@ -495,7 +495,7 @@ def finding_peaks(signal_data):
     return peaks, peaks_list
 
 """計算ppi"""
-def ppi_cal(peaks, sampling_rate = 15):
+def ppi_cal(peaks, sampling_rate = 12):
     ppi_values = []
     heart_rates = []
 
@@ -519,7 +519,7 @@ def ppi_cal(peaks, sampling_rate = 15):
     print("\n--平均心率 (HR): {:.2f} bpm".format(avg_hr))
     print("-- HR 值 (當筆資料):", heart_rates)
 
-    return ppi_values , heart_rates
+    return ppi_values
 
 """計算SDNN、RMSSD"""
 def sdnn_rmssd(ppi_values):    
@@ -817,16 +817,16 @@ def fast_apen(x, m=2, r=None):
 
 
 """傅立葉+LF、HF計算"""
-def fft_cal(listTemp):
+def fft_cal(listTemp,fps):
 
     values, timestamps = zip(*listTemp)  
     values = np.array(values)
     timestamps = np.array(timestamps)
 
     # 計算取樣率
-    duration = timestamps[-1] - timestamps[0]
-    fps = len(timestamps) / duration
-    print(f"\n Sampling rate = {fps:.2f} Hz")
+    # duration = timestamps[-1] - timestamps[0]
+    # fps = len(timestamps) / duration
+    # print(f"\n Sampling rate = {fps:.2f} Hz")
 
     n = len(values)
     raw2 = np.fft.rfft(values)
@@ -888,22 +888,22 @@ def lfhf_cal(fft_freq, fft_power):
     
     
 """傅立葉+HR計算"""
-def hr_cal(listTemp):
+def hr_cal(fft_freq,fft_power):
 
-    values, timestamps = zip(*listTemp)  
-    values = np.array(values)
-    timestamps = np.array(timestamps)
+    # values, timestamps = zip(*listTemp)  
+    # values = np.array(values)
+    # timestamps = np.array(timestamps)
 
-    # 計算取樣率
-    duration = timestamps[-1] - timestamps[0]
-    fps = len(timestamps) / duration
-    print(f"\n自動推算 fps: {fps:.2f} Hz")
+    # # # 計算取樣率
+    # # duration = timestamps[-1] - timestamps[0]
+    # # fps = len(timestamps) / duration
+    # # print(f"\n自動推算 fps: {fps:.2f} Hz")
 
-    n = len(values)
-    raw2 = np.fft.rfft(values*100) # 放大振幅，不影響頻率
-    # fft_freq = float(fps) / n * np.arange(n / 2 + 1) # 手動算頻率軸(x軸)
-    fft_freq = np.fft.rfftfreq(n, d=1/fps) # 正頻率對應的頻率軸
-    fft_power = np.abs(raw2)**2
+    # n = len(values)
+    # raw2 = np.fft.rfft(values*100) # 放大振幅，不影響頻率
+    # # fft_freq = float(fps) / n * np.arange(n / 2 + 1) # 手動算頻率軸(x軸)
+    # fft_freq = np.fft.rfftfreq(n, d=1/fps) # 正頻率對應的頻率軸
+    # fft_power = np.abs(raw2)**2
 
     # # 畫圖
     # plt.figure(figsize=(10, 4))
@@ -1344,7 +1344,7 @@ def preProcessing_timeDomain(file_path_r:str):
     #     # time = np.linspace(0, 0.02, 52)
 
     #     # bandPass_filter(signal, fs=12, lowcut=0.01, highcut=3, order=2):
-    #     listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 3 ,2)
+    listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 3 ,2)
 
     #     # 帶通濾波處理
     #     plot_data(listTemp,"Bandpass Filtering")
@@ -1390,31 +1390,6 @@ def preProcessing_timeDomain(file_path_r:str):
 
 
     """基線飄移(校準)"""
-    # baseline_als(listTemp2[:,0].astype(float), 1e5, 0.1)
-    # for test基線校準
-    # input_array=[10,20,1.5,5,2,9,99,25,47]
-    
-    #基線校正(原)(全部一起基線校正)
-    # try:
-    #     # polynomial_degree=2 #only needed for Modpoly and IModPoly algorithm
-    #     # #for test基線校準
-    #     # baseObj=BaselineRemoval(listTemp[:,0])
-    #     # #baseObj=BaselineRemoval(input_array)
-    #     # #listTemp[:,0] = detrend(listTemp[:,0],100,'linear',500)
-    #     # listTemp[:,0]=baseObj.ModPoly(polynomial_degree)
-    #     # #baseObj=BaselineRemoval(listTemp[:,0])
-    #     # # listTemp[:,0]=baseline_correction(listTemp[:,1],listTemp[:,0], 2)
-    #     # #listTemp[:,0]=baseObj.IModPoly(polynomial_degree)
-    #     # # listTemp[:,0]=baseObj.ZhangFit()
-    #     # #將信號畫成圖型 
-
-    #     listTemp[:,0] = baseline_correction(listTemp[:,0],150)
-    
-    #     plot_data(listTemp," Baseline correction")
-    # except Exception as e:
-    #     print("Baseline correction fail" + str(e))
-
-
     ##基線校正 03 (有時窗)
     try:
         # listTemp = baseline_removal2(listTemp,100)
@@ -1424,24 +1399,7 @@ def preProcessing_timeDomain(file_path_r:str):
     except Exception as e:
         print("Baseline correction fail" + str(e))
 
-    ### 基線校正02
-    # # import numpy as np
-    # from scipy.ndimage import uniform_filter1d
     
-    # try:
-    #     # 定義移動視窗大小
-    #     window_size = 50  # 可以根據數據調整
-
-    #     # 計算滑動平均
-    #     baseline = uniform_filter1d(listTemp[:, 0], size=window_size)
-
-    #     # 進行基線校準
-    #     listTemp[:, 0] = listTemp[:, 0] - baseline
-
-    #     plot_data(listTemp, "Baseline correction with Moving Average")
-    # except Exception as e:
-    #     print("Baseline 2222 fail"+ str(e))
-
     """平滑化3"""
     try:
         listTemp[:,0] = smoothTriangle(listTemp[:,0], 5)
@@ -1483,7 +1441,7 @@ def preProcessing_timeDomain(file_path_r:str):
         print("---波峰索引值(最多2筆資料)：", peaks_list)
         
         # 計算ppi --> 計算sdnn. rmssd
-        ppi_values, heart_rates = ppi_cal(peaks, 15)
+        ppi_values = ppi_cal(peaks, 15)
         sdnn, rmssd = sdnn_rmssd(ppi_values)
         print("\n--SDNN：", sdnn)
         print("--RMSSD:", rmssd, "\n")
@@ -1492,13 +1450,13 @@ def preProcessing_timeDomain(file_path_r:str):
         values, times, peaks,troughs, target_valleys, signal_data = finding_peaks_bp(listTemp)
         result, tRatio_1, tRatio_2, hRatio_1, hRatio_2, aRatio_1, aRatio_2 = bp_features_cal(values, times, peaks,troughs, target_valleys, signal_data)
         
-        print("\n--所有特徵點:\n",result)
-        print("\n--時間比特徵 1 :",tRatio_1)
-        print("--時間比特徵 2 :",tRatio_2)
-        print("\n--振幅比特徵 1 :",hRatio_1)
-        print("--振幅比特徵 2 :",hRatio_2)
-        print("\n--面積比特徵 1 :",aRatio_1)    
-        print("--面積比特徵 2 :", aRatio_2)
+        # print("\n--所有特徵點:\n",result)
+        # print("\n--時間比特徵 1 :",tRatio_1)
+        # print("--時間比特徵 2 :",tRatio_2)
+        # print("\n--振幅比特徵 1 :",hRatio_1)
+        # print("--振幅比特徵 2 :",hRatio_2)
+        # print("\n--面積比特徵 1 :",aRatio_1)    
+        # print("--面積比特徵 2 :", aRatio_2)
         
 
     except Exception as e:
@@ -1524,8 +1482,11 @@ def preProcessing_timeDomain(file_path_r:str):
         # # ApEn
         # apen = ant.app_entropy(listTemp[:,0], order=m, r=r)
 
-        print(f"Approximate Entropy (ApEn): {apen:.3f}")
-        print(f"Sample Entropy (SampEn): {sampen:.3f}")
+        apen = round(apen,3)
+        sampen = round(apen,3)
+
+        print(f"Approximate Entropy (ApEn): apen")
+        print(f"Sample Entropy (SampEn): sampen")
 
     except Exception as e:
         print("Entrppy Calculation Fail"+ str(e))
@@ -1690,13 +1651,13 @@ def preProcessing_freqDomain(file_path_r:str):
         listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 0.4 ,2)
         #plot_data(listTemp, "bandpass-LF+HF")
         # 傅立葉轉換
-        fft_freq, fft_power = fft_cal(listTemp)
+        fft_freq, fft_power = fft_cal(listTemp,12)
         # 計算LF、HF、LF/HF
         nlf, nhf, lf_hf_ratio = lfhf_cal(fft_freq, fft_power)
 
         """計算HR"""
         # 帶通(0.6-3)
-        listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 0.4 ,2)
+        # listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 0.4 ,2)
         #plot_data(listTemp, "bandpass-hrrrrr")
         # 傅立葉轉換+ HR計算
         heart_rate_bpm = hr_cal(listTemp)
