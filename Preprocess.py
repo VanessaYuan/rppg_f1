@@ -516,8 +516,8 @@ def ppi_cal(peaks, sampling_rate = 12):
     print("\n--共有", len(ppi_values), "個PPi")
     print("--平均PPi長度:", avg_ppi)
     print("--PPi值(當筆資料)：",ppi_values)
-    print("\n--平均心率 (HR): {:.2f} bpm".format(avg_hr))
-    print("-- HR 值 (當筆資料):", heart_rates)
+    # print("\n--平均心率 (HR): {:.2f} bpm".format(avg_hr))
+    # print("-- HR 值 (當筆資料):", heart_rates)
 
     return ppi_values
 
@@ -1438,7 +1438,7 @@ def preProcessing_timeDomain(file_path_r:str):
         # 找波峰
         peaks, peaks_list = finding_peaks(listTemp)
         print("\n--共有", len(peaks),"個波峰")
-        print("---波峰索引值(最多2筆資料)：", peaks_list)
+        # print("---波峰索引值(最多2筆資料)：", peaks_list)
         
         # 計算ppi --> 計算sdnn. rmssd
         ppi_values = ppi_cal(peaks, 15)
@@ -1485,8 +1485,8 @@ def preProcessing_timeDomain(file_path_r:str):
         apen = round(apen,3)
         sampen = round(apen,3)
 
-        print(f"Approximate Entropy (ApEn): apen")
-        print(f"Sample Entropy (SampEn): sampen")
+        print("Approximate Entropy (ApEn):",apen)
+        print("Sample Entropy (SampEn):",sampen)
 
     except Exception as e:
         print("Entrppy Calculation Fail"+ str(e))
@@ -1655,15 +1655,20 @@ def preProcessing_freqDomain(file_path_r:str):
         # 計算LF、HF、LF/HF
         nlf, nhf, lf_hf_ratio = lfhf_cal(fft_freq, fft_power)
 
+    except Exception as e:
+        print("LF,HF, LF/HF Calculation fail"+ str(e))
+
+    try:
         """計算HR"""
         # 帶通(0.6-3)
         # listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 0.4 ,2)
         #plot_data(listTemp, "bandpass-hrrrrr")
         # 傅立葉轉換+ HR計算
-        heart_rate_bpm = hr_cal(listTemp)
+        heart_rate_bpm = hr_cal(fft_freq,fft_power)
+        heart_rate_bpm = round(heart_rate_bpm,3)
     
     except Exception as e:
-        print("Features Calculation fail"+ str(e))
+        print("HR Calculation fail"+ str(e))
 
     # 每次計算完一筆資料後
     freqFeatures = [
