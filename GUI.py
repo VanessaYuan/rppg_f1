@@ -95,6 +95,7 @@ def execute_action():
 
     messagebox.showinfo("儲存成功", f"特徵已儲存至：\n{full_path}")
     subprocess.Popen(f'explorer "{output_folder}"')
+    print(f"總共輸出了 {len(all_data)} 筆資料")  # ✅ 加這一行
 
     # 處理完成，歸零進度條（或滿格顯示完成）
     progress_bar["value"] = total_files
