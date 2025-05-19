@@ -19,9 +19,9 @@ def execute_action():
         messagebox.showwarning("錯誤", "請選擇健康資料資料夾")
         return
 
-    all_data = []
+    all_cases_data = {}
 
-    # 🔢 預估總檔案數量
+    # 預估檔案總數量
     total_files = 0
     for case_name in os.listdir(root_folder):
         case_path = os.path.join(root_folder, case_name)
@@ -39,12 +39,15 @@ def execute_action():
     progress_bar["value"] = 0
     root.update()
 
-    # 🚀 開始處理資料夾
+    # 開始處理
     processed = 0
     for case_name in os.listdir(root_folder):
         case_path = os.path.join(root_folder, case_name)
         if not os.path.isdir(case_path):
             continue
+
+        if case_name not in all_cases_data:
+            all_cases_data[case_name] = {}
 
         for region_name in os.listdir(case_path):
             region_path = os.path.join(case_path, region_name)
@@ -64,8 +67,24 @@ def execute_action():
                                 color = c
                                 break
 
-                        row = features + [f'="{case_name}', region_name, color]
-                        all_data.append(row)
+                        if color == "unknown":
+                            continue
+
+                        # 建立 prefix
+                        prefix = f"{region_name}_{color}"
+
+                        feature_names = [
+                            "sdnn", "rmssd",
+                            "tRatio_1", "tRatio_2",
+                            "hRatio_1", "hRatio_2",
+                            "aRatio_1", "aRatio_2",
+                            "SampEn", "ApEn",
+                            "nlf", "nhf", "lf_hf_ratio",
+                            "heart_rate_bpm"
+                        ]
+
+                        for name, value in zip(feature_names, features):
+                            all_cases_data[case_name][f"{name}_{prefix}"] = value
 
                     except Exception as e:
                         print(f"處理失敗: {file_path}，錯誤訊息: {e}")
@@ -74,31 +93,34 @@ def execute_action():
                     progress_bar["value"] = processed
                     root.update()
 
-    feature_names = [
-        "sdnn", "rmssd",
-        "tRatio_1", "tRatio_2",
-        "hRatio_1", "hRatio_2",
-        "aRatio_1", "aRatio_2",
-        "SampEn", "ApEn",
-        "nlf", "nhf", "lf_hf_ratio",
-        "heart_rate_bpm",
-        "record_folder", "ROI", "color"
-    ]
+    # 將結果轉換成 DataFrame
+    all_rows = []
+    all_columns = set()
 
-    df = pd.DataFrame(all_data, columns=feature_names)
+    for case, feature_dict in all_cases_data.items():
+        feature_dict["record_folder"] = f'="{case}"'
+        all_columns.update(feature_dict.keys())
+        all_rows.append(feature_dict)
 
+    # 將欄位順序排序（record_folder 最前面）
+    all_columns = sorted(all_columns)
+    if "record_folder" in all_columns:
+        all_columns.remove("record_folder")
+        all_columns = ["record_folder"] + all_columns
+
+    df = pd.DataFrame(all_rows, columns=all_columns)
+
+    # 儲存
     output_folder = 'C:\\output_features\\'
     os.makedirs(output_folder, exist_ok=True)
-
-    output_filename = "Features_all.csv"
+    output_filename = "Features_by_case.csv"
     full_path = os.path.join(output_folder, output_filename)
-
-    file_exists = os.path.exists(full_path)
-    df.to_csv(full_path, mode='a', header=not file_exists, index=False, encoding='utf-8-sig')
+    df.to_csv(full_path, index=False, encoding='utf-8-sig')
 
     messagebox.showinfo("儲存成功", f"特徵已儲存至：\n{full_path}")
     subprocess.Popen(f'explorer "{output_folder}"')
-    print(f"總共輸出了 {len(all_data)} 筆資料")
+    print(f"總共輸出了 {len(all_rows)} 筆個案資料（橫向展開）")
+
 
     progress_bar["value"] = total_files
     root.update()
