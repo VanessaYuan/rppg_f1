@@ -57,97 +57,6 @@ def plot_data(listTemp, title):
     # 顯示圖表
     plt.show()
 
-"""讀取檔案(3版)"""
-def read_from_file(file_path):
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
-
-    """原始數據長度"""
-    total_original = len(lines)
-    print(f"\n--原始數據點數: {total_original}")
-
-    # if total_original < 1000:  
-    #     print("數據長度不足")
-    #     return np.array([])
-
-    # """去掉最前面 100 個點和最後面 50 個點"""
-    # lines = lines[100:-150]
-    # total_after_trim = len(lines)
-    # print(f"--去頭 100、去尾 50 後剩餘: {total_after_trim}")
-
-    # """只保留第 200 到 1000 點"""
-    # lines = lines[200:1001]
-    # total_after_trim = len(lines)
-    # print(f"--篩選後剩餘: {total_after_trim}")
-
-    """解析數據"""
-    parsed_data = []  # 存儲 (value, timestamp)
-    values = []  # 只存數值部分
-    first_timestamp = None  # 記錄第一個時間戳
-
-    for line in lines:
-        data_tpm = line.strip().split(",")
-        try:
-            value = float(data_tpm[1])  # 解析數值
-            timestamp = datetime.strptime(data_tpm[0], "%H:%M:%S.%f")  # 解析時間
-            
-            if first_timestamp is None:
-                first_timestamp = timestamp  # 記錄第一個時間
-            
-            # 計算與第一個時間的時間差（以秒為單位）
-            time_second = (timestamp - first_timestamp).total_seconds()
-
-            parsed_data.append((value, time_second))  # 存數據
-            values.append(value)  # 存數值
-        except Exception as e:
-            print(f"數據解析錯誤: {line.strip()}，錯誤: {e}")
-
-    """計算平均值與標準差"""
-    mean_val = np.mean(values)
-    std_val = np.std(values)
-    lower_bound = mean_val - 2 * std_val
-    upper_bound = mean_val + 2 * std_val
-    print(f"--離群值範圍: 小於 {lower_bound:.2f} 或 大於 {upper_bound:.2f} 的數據將被排除")
-
-    """篩選數據"""
-    listTemp = [(value, time_second) for value, time_second in parsed_data if lower_bound <= value <= upper_bound]
-    
-    # """重新編排 y 軸"""
-    # listTemp = [(value, new_y, time_second) for new_y, (value, time_second) in enumerate(filtered_data)]
-
-    """計算離群值數量"""
-    outlier_count = len(values) - len(listTemp)
-    total_after_outlier_removal = len(listTemp)
-    print(f"--離群值數量: {outlier_count}")
-    print(f"--扣除離群值後剩餘: {total_after_outlier_removal}")
-    
-    # print(f"輸出格式為\n{listTemp}")  ## list
-
-    # """繪製訊號圖"""
-    # plt.figure(figsize=(12, 5))
-
-    # # 從list中提取值
-    # filtered_values = [val for val, _ in listTemp]
-    # time_second_index = [time_second for _, time_second in listTemp]
-
-    # plt.plot(time_second_index, filtered_values, color="b", markersize=3, linestyle="-", label="Signal")
-
-    # # 添加均值虛線
-    # plt.axhline(mean_val, color="r", linestyle="--", label="Mean")
-
-    # # 標記離群值範圍
-    # plt.fill_between(time_second_index, lower_bound, upper_bound, color="gray", alpha=0.2, label="Mean ± 2STD")
-
-    # plt.xlabel("Time (seconds)")
-    # plt.ylabel("Value")
-    # plt.title("Filtered Signal")
-    # plt.legend()
-    # plt.grid(True)
-
-    # plt.show()
-
-    return np.array(listTemp)  # 回傳整理後的數據
-
 
 """三角平滑化"""
 def smoothTriangle(data, degree):
@@ -946,351 +855,9 @@ def hr_cal(fft_freq,fft_power):
     return bpm
     
 
-
-    # heart rate(子月)############################################################
-    # raw = np.fft.rfft(norm*100)                
-    # freqs = float(fps) / L * np.arange(L / 2 + 1)  # freq(x軸)                                    
-    # fft = np.abs(raw)**2   # power (y 軸)
-    
-    # hr_freqs = 60. * freqs    # 心率 freq bpm     
-    # hr_idx = np.where((hr_freqs > 60) & (hr_freqs < 100))
-    # #sidx2=str(idx2)+'\n'
-    # #print(sidx2)
-                
-    # pruned = fft[hr_idx]               
-    # pfreq = hr_freqs[hr_idx]
-    
-    # # freqs = pfreq 
-    # # fft = pruned
-            
-    # try:
-    #     idx_hr=np.argmax(pruned)                
-    #     bpm = pfreq[idx_hr]
-    # except:
-    #     bpm = bpm
-    # return  bpm 
-    # heart rate (子月)#####################################################################
-    
-
-
-# """傅立葉"""
-# def fft(signal, sampling_rate):
-#     """
-#     對時域訊號進行快速傅立葉轉換，並畫出頻域圖
-
-#     參數:
-#     - signal: 時域訊號（1D numpy array）
-#     - sampling_rate: 取樣頻率（Hz）
-#     - title: 圖表標題（可選）
-
-#     回傳:
-#     - freqs: 頻率軸
-#     - magnitude: 對應頻率的振幅（magnitude spectrum）
-#     """
-
-#     # 計算FFT
-#     n = len(signal)
-#     fft_vals = np.fft.fft(signal)
-#     fft_vals = np.abs(fft_vals) / n  # 正規化振幅
-#     fft_vals = fft_vals[:n // 2]     # 取前半部（單邊頻譜）
-    
-#     # 頻率軸
-#     freqs = np.fft.fftfreq(n, d=1/sampling_rate)
-#     freqs = freqs[:n // 2]
-
-    # # 找出主頻率
-    # main_freq = freqs[np.argmax(fft_vals)]
-    # heart_rate = main_freq * 60  # 轉為 bpm
-    # print(f"主頻率：{main_freq:.2f} Hz，推估心率：{heart_rate:.1f} bpm")
-
-    # # 畫圖
-    # plt.figure(figsize=(10, 4))
-    # plt.plot(freqs, fft_vals, color='blue')
-    # plt.title("Frequency Domain (FFT)")
-    # plt.xlabel("Frequency (Hz)")
-    # plt.ylabel("Amplitude")
-    # plt.grid(True)
-    # plt.tight_layout()
-    # plt.show()
-
-    # return freqs, fft_vals
-
-
-# def find_cycles(signal_data):
-#     signal_data = np.array(signal_data)
-#     values, times = signal_data[:, 0], signal_data[:, 1]
-    
-#     # 計算一階差分
-#     diff_values = np.diff(values)
-    
-#     # 找出波峰（正變負）和波谷（負變正）
-#     peaks = np.where((diff_values[:-1] > 0) & (diff_values[1:] <= 0))[0] + 1
-#     troughs = np.where((diff_values[:-1] < 0) & (diff_values[1:] >= 0))[0] + 1
-    
-#     # 週期列表
-#     cycles = []
-    
-#     # 遍歷所有相鄰的波谷來定義週期
-#     for i in range(len(troughs) - 1):
-#         start_trough = troughs[i]
-#         end_trough = troughs[i + 1]
-        
-#         # 找出這個區間內的波峰與波谷
-#         peaks_in_cycle = [p for p in peaks if start_trough < p < end_trough]
-#         troughs_in_cycle = [t for t in troughs if start_trough < t < end_trough]
-        
-#         if not peaks_in_cycle or not troughs_in_cycle:
-#             continue  # 沒有完整的週期，跳過
-        
-#         # 找主波峰（區間內最高的波峰）與次波峰
-#         main_peak = max(peaks_in_cycle, key=lambda p: values[p])
-#         secondary_peak = max((p for p in peaks_in_cycle if p != main_peak), 
-#                              key=lambda p: values[p], default=None)
-        
-#         # 找主波谷（區間內最低的波谷）與次波谷
-#         main_trough = min(troughs_in_cycle, key=lambda t: values[t])
-#         secondary_trough = min((t for t in troughs_in_cycle if t != main_trough), 
-#                                key=lambda t: values[t], default=None)
-        
-#         # 記錄這個週期
-#         cycles.append({
-#             "start_trough": start_trough,
-#             "main_peak": main_peak,
-#             "main_trough": main_trough,
-#             "secondary_peak": secondary_peak,
-#             "secondary_trough": secondary_trough,
-#             "end_trough": end_trough
-#         })
-        
-#     # 確認是否成功識別週期
-#     if not cycles:
-#         print("沒有識別到任何週期！請檢查信號資料。")
-
-#     # 繪製訊號與週期標記
-#     plt.figure(figsize=(12, 6))
-#     plt.plot(times, values, label='Signal', color='blue', linewidth=1.5)
-
-#     for cycle in cycles:
-#         # 主波峰（紅色，較大）
-#         if cycle["main_peak"] is not None:
-#             plt.scatter(times[cycle["main_peak"]], values[cycle["main_peak"]], 
-#                         color='darkred', marker='*', s=200, edgecolors='black', linewidths=1.5)
-
-#         # 主波谷（深綠色，較大）
-#         if cycle["main_trough"] is not None:
-#             plt.scatter(times[cycle["main_trough"]], values[cycle["main_trough"]], 
-#                         color='darkgreen', marker='*', s=200, edgecolors='black', linewidths=1.5)
-
-#         # 次波峰（橙色）
-#         if cycle["secondary_peak"] is not None:
-#             plt.scatter(times[cycle["secondary_peak"]], values[cycle["secondary_peak"]], 
-#                         color='orange', marker='^', s=150, edgecolors='black', linewidths=1.2)
-
-#         # 次波谷（紫色）
-#         if cycle["secondary_trough"] is not None:
-#             plt.scatter(times[cycle["secondary_trough"]], values[cycle["secondary_trough"]], 
-#                         color='purple', marker='v', s=150, edgecolors='black', linewidths=1.2)
-
-#         # 週期開始 & 結束波谷（藍色圓圈）
-#         if cycle["start_trough"] is not None:
-#             plt.scatter(times[cycle["start_trough"]], values[cycle["start_trough"]], 
-#                         color='blue', marker='o', s=120, edgecolors='black', linewidths=1.2)
-
-#         if cycle["end_trough"] is not None:
-#             plt.scatter(times[cycle["end_trough"]], values[cycle["end_trough"]], 
-#                         color='blue', marker='o', s=120, edgecolors='black', linewidths=1.2)
-
-#     plt.xlabel('Time (ms)')
-#     plt.ylabel('Signal Value')
-#     plt.title('Signal with Cycles Identified')
-
-#     # 移除重複標籤
-#     handles, labels = plt.gca().get_legend_handles_labels()
-#     unique_labels = dict(zip(labels, handles))
-#     plt.legend(unique_labels.values(), unique_labels.keys())
-
-#     plt.grid()
-#     plt.show()
-
-
-# def find_turning_points(signal_data):
-#     if signal_data is None or len(signal_data) == 0:
-#         print("Find turning points fail: Input signal_data is empty or None.")
-#         return None
-
-#     # 轉換成 numpy array
-#     signal_data = np.array(signal_data)
-
-#     # 檢查數據是否至少有兩列（值, 時間）
-#     if signal_data.ndim != 2 or signal_data.shape[1] < 2:
-#         print("Find turning points fail: signal_data must have two columns [value, time].")
-#         return None
-
-#     values, times = signal_data[:, 0], signal_data[:, 1]
-
-#     # 計算一階與二階差分
-#     first_diff = np.diff(values)
-#     second_diff = np.diff(first_diff)
-
-#     # 確保時間軸對齊（差分後長度變短）
-#     second_diff_times = times[2:]  
-
-#     # 找二階差分的峰值（曲率變化最大的位置）
-#     peaks, _ = find_peaks(np.abs(second_diff))
-
-#     # **修正錯誤處理**
-#     if peaks is None or len(peaks) == 0:
-#         print("Find turning points fail: No turning points found.")
-#         return None
-
-#     # 取得轉折點的時間和數值
-#     turning_times = second_diff_times[peaks]
-#     turning_values = values[peaks + 1]  # 索引對應 values，需要加 1
-
-#     # 畫出原始信號與轉折點
-#     plt.figure(figsize=(10, 5))
-#     plt.plot(times, values, label='Original Signal', color='blue')
-#     plt.scatter(turning_times, turning_values, color='red', label='Turning Points', marker='o')
-    
-#     plt.xlabel('Time (s)')
-#     plt.ylabel('Signal Value')
-#     plt.title('Signal with Turning Points')
-#     plt.legend()
-#     plt.grid()
-#     plt.show()
-
-#     return list(zip(turning_times, turning_values))
-
-
-# # 計算導數
-# def compute_derivatives(y, x):
-#     dy = np.gradient(y, x)  # 一階導數
-#     ddy = np.gradient(dy, x)  # 二階導數
-#     dddy = np.gradient(ddy, x)  # 三階導數
-#     return dy, ddy, dddy
-
-#     # 找尋波峰與波谷
-# def detect_peaks_and_valleys(y, ddy):
-#     peaks, _ = find_peaks(y)  # 找波峰
-#     valleys, _ = find_peaks(-y)  # 找波谷
-
-#     # 使用二階導數極值來找拐點 (次波峰與次波谷)
-#     inflection_points, _ = find_peaks(np.abs(ddy))
-#     return peaks, valleys, inflection_points
-    
-# def find_rppg_peaks_and_troughs2222(data):
-#     # 解析數據
-#     values = np.array([point[0] for point in data])
-#     time = np.array([point[1] for point in data])
-    
-#     # 計算一階差分
-#     diff_values = np.diff(values)
-#     diff_time = time[:-1]  # 差分後時間少一個
-    
-#     # 找出一階差分的波峰
-#     peaks, _ = find_peaks(diff_values)
-    
-#     plt.figure(figsize=(10, 4))
-#     plt.plot(diff_time, diff_values, marker='o', label='First-order Difference')
-#     plt.xlabel("Time")
-#     plt.ylabel("Difference Value")
-#     plt.title("First-order Difference of RPPG Signal")
-#     plt.legend()
-#     plt.show()
-
-#     if len(peaks) == 0:
-#         raise ValueError("未找到波峰")
-    
-#     # 找出最高的波峰 T
-#     T = np.max(diff_values[peaks])
-    
-#     # 設定界線 0.6T
-#     threshold = 0.6 * T
-#     sub_peaks = peaks[diff_values[peaks] < threshold]
-    
-#     # 找出過零點
-#     zero_crossings = np.where(np.diff(np.sign(diff_values)))[0]
-#     pos_to_neg = zero_crossings[diff_values[zero_crossings] > 0]  # 正轉負（次波峰）
-#     neg_to_pos = zero_crossings[diff_values[zero_crossings] < 0]  # 負轉正（次波谷）
-    
-#     # 繪圖
-#     plt.figure(figsize=(10, 5))
-#     plt.plot(diff_time, diff_values, label='First-order Difference', color='blue')
-#     plt.scatter(diff_time[peaks], diff_values[peaks], color='red', label='Primary Peaks')
-#     plt.scatter(diff_time[sub_peaks], diff_values[sub_peaks], color='orange', label='Sub Peaks')
-#     plt.axhline(y=threshold, color='gray', linestyle='--', label='Threshold (0.6T)')
-#     plt.scatter(diff_time[pos_to_neg], diff_values[pos_to_neg], color='green', label='Secondary Peaks')
-#     plt.scatter(diff_time[neg_to_pos], diff_values[neg_to_pos], color='purple', label='Secondary Troughs')
-#     plt.xlabel("Time")
-#     plt.ylabel("Difference Value")
-#     plt.legend()
-#     plt.title("RPPG Signal Peak and Trough Detection")
-#     plt.show()
-
-#     # 結果
-#     result = {
-#         "primary_peaks": [(diff_time[p], diff_values[p]) for p in peaks],
-#         "threshold": threshold,
-#         "sub_peaks": [(diff_time[p], diff_values[p]) for p in sub_peaks],
-#         "zero_crossings": diff_time[zero_crossings],
-#         "secondary_peaks": diff_time[pos_to_neg],
-#         "secondary_troughs": diff_time[neg_to_pos]
-#     }
-    
-#     return result
-
-
-# def find_peaks_in_second_derivative(listTemp, threshold=0.1):
-#     # 解壓縮數據 (確保 listTemp 內容是 [(數值, 時間), (數值, 時間), ...])
-#     values, timestamps = zip(*listTemp)
-
-#     # 轉為 NumPy 陣列
-#     values = np.array(values)
-#     timestamps = np.array(timestamps)
-    
-#     second_diff = np.diff(values, n=2)
-#     peaks, _ = find_peaks(second_diff, height=threshold)  # 找出二階差分的波峰
-    
-#     # 對應時間戳記（因為二階差分少了 2 個點，對應時間要從 index=1 開始）
-#     peak_times = timestamps[peaks + 1]
-    
- 
-#     origin= [(values,timestamps)]
-
-#     # 畫圖
-#     plt.figure(figsize=(12, 5))
-
-#     plt.subplot(2, 1, 1)
-#     plt.plot(timestamps, values, label="Original Signal")
-#     plt.title("Original Signal")
-#     plt.xlabel("Time")
-#     plt.ylabel("Value")
-#     plt.legend()
-#     plt.grid(True)
-
-#     plt.subplot(2, 1, 2)
-#     plt.plot(timestamps[1:-1], second_diff, label="Second Derivative", color="g")
-#     plt.plot(peak_times, second_diff[peaks], "ro", label="Peaks")  # 標記波峰
-#     plt.title("Second Derivative and Peaks")
-#     plt.xlabel("Time")
-#     plt.ylabel("Amplitude")
-#     plt.legend()
-#     plt.grid(True)
-
-#     plt.tight_layout()
-#     plt.show()
-    
-#     return origin, second_diff, peaks, peak_times
-
 """時域計算+前處理"""
-def preProcessing_timeDomain(file_path_r:str):
+def preProcessing_timeDomain(listTemp):
 # def preProcessing(timeWindow:int,第幾個timeWindow:int,file_path_r:str,區間_from:int,區間_to:int):
-    
-    tRatio_1 = tRatio_2 = hRatio_1 = hRatio_2 = aRatio_1 = aRatio_2 = None
-    sdnn = rmssd = None
-
-    
-    listTemp =[]
 
     #設定timeWindow
     # timeWindow = 300
@@ -1298,11 +865,11 @@ def preProcessing_timeDomain(file_path_r:str):
 
     """讀檔"""
     print("\n =======時域計算=====================================")
-    listTemp = read_from_file(file_path_r)
+    # listTemp = read_from_file(file_path_r)
 
-    #將listTemp轉換為np.array
-    listTemp = np.array(listTemp)
-    #print(f"檢查：\n {listTemp[:5]}")
+    # #將listTemp轉換為np.array
+    # listTemp = np.array(listTemp)
+    # #print(f"檢查：\n {listTemp[:5]}")
 
     """平滑化1"""
     # window_length 控制平滑範圍大小，數值越大，平滑效果越強。
@@ -1429,108 +996,13 @@ def preProcessing_timeDomain(file_path_r:str):
 
         #plot_data(listTemp,"Normalization")
     except Exception as e:
-            print("Normalization fail" + str(e))
-            traceback.print_exc()
-
-
-    """找波峰，計算時域特徵、PTT時域"""
-    try:
-        # 找波峰
-        peaks, peaks_list = finding_peaks(listTemp)
-        print("\n--共有", len(peaks),"個波峰")
-        # print("---波峰索引值(最多2筆資料)：", peaks_list)
-        
-        # 計算ppi --> 計算sdnn. rmssd
-        ppi_values = ppi_cal(peaks, 15)
-        sdnn, rmssd = sdnn_rmssd(ppi_values)
-        print("\n--SDNN：", sdnn)
-        print("--RMSSD:", rmssd, "\n")
-
-        # 計算血壓特徵(時間比、振福比、面積比)
-        values, times, peaks,troughs, target_valleys, signal_data = finding_peaks_bp(listTemp)
-        result, tRatio_1, tRatio_2, hRatio_1, hRatio_2, aRatio_1, aRatio_2 = bp_features_cal(values, times, peaks,troughs, target_valleys, signal_data)
-        
-        # print("\n--所有特徵點:\n",result)
-        # print("\n--時間比特徵 1 :",tRatio_1)
-        # print("--時間比特徵 2 :",tRatio_2)
-        # print("\n--振幅比特徵 1 :",hRatio_1)
-        # print("--振幅比特徵 2 :",hRatio_2)
-        # print("\n--面積比特徵 1 :",aRatio_1)    
-        # print("--面積比特徵 2 :", aRatio_2)
-        
-
-    except Exception as e:
-        print("Features Calculation fail"+ str(e))
-
-    """計算近似商、樣本商"""
-    try:
-        # # 設定參數
-        m = 2
-        r = 0.15 * np.std(listTemp[:,0])
-
-        # # 計算 ApEn 和 SampEn(data, m, r)
-        # #減少 m(維度)（通常用 m=2 是較穩定的起點）
-        # #適當增大 r(兩者距離)（建議設為 0.1~0.25 * std(x)）
-        
-        apen = fast_apen(listTemp[:,0], m, r)
-        sampen = fast_sampen(listTemp[:,0], m, r)
-
-        # SampEn
-        # x 是時間序列，order=m 為維度，r 是容差參數（通常為 std(x) 的 0.1 ~ 0.25 倍）
-        # sampen = ant.sample_entropy(listTemp[:,0], order=m, r=r)
-
-        # # ApEn
-        # apen = ant.app_entropy(listTemp[:,0], order=m, r=r)
-
-        apen = round(apen,3)
-        sampen = round(apen,3)
-
-        print("Approximate Entropy (ApEn):",apen)
-        print("Sample Entropy (SampEn):",sampen)
-
-    except Exception as e:
-        print("Entrppy Calculation Fail"+ str(e))
-
-    """特徵總和"""
-    # 每次計算完一筆資料後
-    hrvFeatures = [sdnn, rmssd]
+        print("Normalization fail" + str(e))
     
-    bpFeatures = [
-        tRatio_1, tRatio_2,
-        hRatio_1, hRatio_2,
-        aRatio_1, aRatio_2,
-    ]
-
-    nonlinFeature = [sampen, apen]
-
-    timeFeatures = hrvFeatures + bpFeatures + nonlinFeature
+    return listTemp
     
-    timeFeatures_list = []
-    timeFeatures_list.append(timeFeatures)
-
-    # print("\n--時域特徵:",
-    #       "\n tRatio_1:",tRatio_1,
-    #       "\n tRatio_2:", tRatio_2,
-    #       "\n hRatio_1:",hRatio_1,
-    #       "\n hRatio_2:", hRatio_2,
-    #       "\n aRatio_1:", aRatio_1,
-    #       "\n aRatio_2:", aRatio_2,
-    #       "\n sdnn:", sdnn,
-    #       "\n rmssd:", rmssd,
-    #       "\n SampEn:", sampen,
-    #       "\n ApEn:", apen
-    #       )
-
-    return timeFeatures_list
-
 
 """頻域計算+前處理"""
-def preProcessing_freqDomain(file_path_r:str):
-    
-    nlf = nhf = lf_hf_ratio = None
-    heart_rate_bpm1 = heart_rate_bpm2 = heart_rate_bpm3 = None
-    
-    listTemp =[]
+def preProcessing_freqDomain(listTemp):
 
     #設定timeWindow
     # timeWindow = 300
@@ -1538,11 +1010,11 @@ def preProcessing_freqDomain(file_path_r:str):
 
     """讀檔"""
     print("=======頻域計算=====================================")
-    listTemp = read_from_file(file_path_r)
+    # listTemp = read_from_file(file_path_r)
 
-    #將listTemp轉換為np.array
-    listTemp = np.array(listTemp)
-    #print(f"檢查：\n {listTemp[:5]}")
+    # #將listTemp轉換為np.array
+    # listTemp = np.array(listTemp)
+    # #print(f"檢查：\n {listTemp[:5]}")
 
     """平滑化1"""
     # window_length 控制平滑範圍大小，數值越大，平滑效果越強。
@@ -1643,12 +1115,129 @@ def preProcessing_freqDomain(file_path_r:str):
     except Exception as e:
             print("Normalization fail" + str(e))
 
+    """帶通(0.03-0.4)"""
+    try:
+        listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 0.4 ,2)
+    except Exception as e:
+        print("Bandpass Filtering fail" + str(e))
+        
+    return listTemp
+
+
+def time_features_cal(listTemp):
+
+    tRatio_1 = tRatio_2 = hRatio_1 = hRatio_2 = aRatio_1 = aRatio_2 = None
+    sdnn = rmssd = None
+
+    """找波峰，計算時域特徵、PTT時域"""
+    try:
+        # 找波峰
+        peaks, peaks_list = finding_peaks(listTemp)
+        print("\n--共有", len(peaks),"個波峰")
+        # print("---波峰索引值(最多2筆資料)：", peaks_list)
+        
+        # 計算ppi --> 計算sdnn. rmssd
+        ppi_values = ppi_cal(peaks, 15)
+        sdnn, rmssd = sdnn_rmssd(ppi_values)
+        print("\n--SDNN：", sdnn)
+        print("--RMSSD:", rmssd, "\n")
+
+        # 計算血壓特徵(時間比、振福比、面積比)
+        values, times, peaks,troughs, target_valleys, signal_data = finding_peaks_bp(listTemp)
+        result, tRatio_1, tRatio_2, hRatio_1, hRatio_2, aRatio_1, aRatio_2 = bp_features_cal(values, times, peaks,troughs, target_valleys, signal_data)
+        
+        # print("\n--所有特徵點:\n",result)
+        # print("\n--時間比特徵 1 :",tRatio_1)
+        # print("--時間比特徵 2 :",tRatio_2)
+        # print("\n--振幅比特徵 1 :",hRatio_1)
+        # print("--振幅比特徵 2 :",hRatio_2)
+        # print("\n--面積比特徵 1 :",aRatio_1)    
+        # print("--面積比特徵 2 :", aRatio_2)
+        
+
+    except Exception as e:
+        print("Features Calculation fail"+ str(e))
+
+    """計算近似商、樣本商"""
+    try:
+        # # 設定參數
+        m = 2
+        r = 0.15 * np.std(listTemp[:,0])
+
+        # # 計算 ApEn 和 SampEn(data, m, r)
+        # #減少 m(維度)（通常用 m=2 是較穩定的起點）
+        # #適當增大 r(兩者距離)（建議設為 0.1~0.25 * std(x)）
+        
+        apen = fast_apen(listTemp[:,0], m, r)
+        sampen = fast_sampen(listTemp[:,0], m, r)
+
+        # SampEn
+        # x 是時間序列，order=m 為維度，r 是容差參數（通常為 std(x) 的 0.1 ~ 0.25 倍）
+        # sampen = ant.sample_entropy(listTemp[:,0], order=m, r=r)
+
+        # # ApEn
+        # apen = ant.app_entropy(listTemp[:,0], order=m, r=r)
+
+        apen = round(apen,3)
+        sampen = round(apen,3)
+
+        print("Approximate Entropy (ApEn):",apen)
+        print("Sample Entropy (SampEn):",sampen)
+
+    except Exception as e:
+        print("Entrppy Calculation Fail"+ str(e))
+
+    # """特徵總和"""
+    # # 每次計算完一筆資料後
+    # hrvFeatures = [sdnn, rmssd]
+    
+    # bpFeatures = [
+    #     tRatio_1, tRatio_2,
+    #     hRatio_1, hRatio_2,
+    #     aRatio_1, aRatio_2,
+    # ]
+
+    # nonlinFeature = [sampen, apen]
+
+    # timeFeatures = hrvFeatures + bpFeatures + nonlinFeature
+    
+    # timeFeatures_list = []
+    # timeFeatures_list.append(timeFeatures)
+
+    # print("\n--時域特徵:",
+    #       "\n tRatio_1:",tRatio_1,
+    #       "\n tRatio_2:", tRatio_2,
+    #       "\n hRatio_1:",hRatio_1,
+    #       "\n hRatio_2:", hRatio_2,
+    #       "\n aRatio_1:", aRatio_1,
+    #       "\n aRatio_2:", aRatio_2,
+    #       "\n sdnn:", sdnn,
+    #       "\n rmssd:", rmssd,
+    #       "\n SampEn:", sampen,
+    #       "\n ApEn:", apen
+    #       )
+
+    return {
+        "sdnn": sdnn,
+        "rmssd": rmssd,
+        "tRatio_1": tRatio_1,
+        "tRatio_2": tRatio_2,
+        "hRatio_1": hRatio_1,
+        "hRatio_2": hRatio_2,
+        "aRatio_1": aRatio_1,
+        "aRatio_2": aRatio_2,
+        "sampen": sampen,
+        "apen": apen
+    }
+
+
+def freq_features_cal(listTemp):
+    nlf = nhf = lf_hf_ratio = None
+
     """頻域特徵計算"""
     try:
         
         """計算LF、HF、LF/HF"""
-        # 帶通(0.03-0.4)
-        listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 0.4 ,2)
         #plot_data(listTemp, "bandpass-LF+HF")
         # 傅立葉轉換
         fft_freq, fft_power = fft_cal(listTemp,12)
@@ -1686,22 +1275,27 @@ def preProcessing_freqDomain(file_path_r:str):
           "\n heart_rate:", heart_rate_bpm,
           )
 
-    return freqFeatures_list
+    return {
+        "nLF":nlf,
+        "nHF":nhf,
+        "LF/HF":lf_hf_ratio,
+        "heart_rate":heart_rate_bpm
+    }
 
-def main_all_features(listTemp):
+# def main_all_features(listTemp):
     
-    timeFeatures_list = preProcessing_timeDomain(listTemp)
-    freqFeatures_list = preProcessing_freqDomain(listTemp)
+#     timeFeatures_list = preProcessing_timeDomain(listTemp)
+#     freqFeatures_list = preProcessing_freqDomain(listTemp)
 
     
-    # 3. 取出各自的特徵向量（注意是 list 裡面的 list）
-    time_features = timeFeatures_list[0]  # e.g. [sdnn, rmssd, ...]
-    freq_features = freqFeatures_list[0]  # e.g. [nlf, nhf, ...]
+#     # 3. 取出各自的特徵向量（注意是 list 裡面的 list）
+#     time_features = timeFeatures_list[0]  # e.g. [sdnn, rmssd, ...]
+#     freq_features = freqFeatures_list[0]  # e.g. [nlf, nhf, ...]
     
     
-    all_features_list = time_features + freq_features
+#     all_features_list = time_features + freq_features
 
 
-    print("\n 所有特徵:",all_features_list)
+#     print("\n 所有特徵:",all_features_list)
     
-    return all_features_list
+#     return all_features_list
