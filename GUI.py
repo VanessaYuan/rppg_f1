@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
@@ -14,96 +15,6 @@ def browse_folder():
     if foldername:
         file_label.config(text=f"Selected Folder: {foldername}")
 
-"""讀取檔案(3版)"""
-def read_from_file(file_path):
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
-
-    """原始數據長度"""
-    total_original = len(lines)
-    print(f"\n--原始數據點數: {total_original}")
-
-    # if total_original < 1000:  
-    #     print("數據長度不足")
-    #     return np.array([])
-
-    # """去掉最前面 100 個點和最後面 50 個點"""
-    # lines = lines[100:-150]
-    # total_after_trim = len(lines)
-    # print(f"--去頭 100、去尾 50 後剩餘: {total_after_trim}")
-
-    # """只保留第 200 到 1000 點"""
-    # lines = lines[200:1001]
-    # total_after_trim = len(lines)
-    # print(f"--篩選後剩餘: {total_after_trim}")
-
-    """解析數據"""
-    parsed_data = []  # 存儲 (value, timestamp)
-    values = []  # 只存數值部分
-    first_timestamp = None  # 記錄第一個時間戳
-
-    for line in lines:
-        data_tpm = line.strip().split(",")
-        try:
-            value = float(data_tpm[1])  # 解析數值
-            timestamp = datetime.strptime(data_tpm[0], "%H:%M:%S.%f")  # 解析時間
-            
-            if first_timestamp is None:
-                first_timestamp = timestamp  # 記錄第一個時間
-            
-            # 計算與第一個時間的時間差（以秒為單位）
-            time_second = (timestamp - first_timestamp).total_seconds()
-
-            parsed_data.append((value, time_second))  # 存數據
-            values.append(value)  # 存數值
-        except Exception as e:
-            print(f"數據解析錯誤: {line.strip()}，錯誤: {e}")
-
-    """計算平均值與標準差"""
-    mean_val = np.mean(values)
-    std_val = np.std(values)
-    lower_bound = mean_val - 2 * std_val
-    upper_bound = mean_val + 2 * std_val
-    print(f"--離群值範圍: 小於 {lower_bound:.2f} 或 大於 {upper_bound:.2f} 的數據將被排除")
-
-    """篩選數據"""
-    listTemp = [(value, time_second) for value, time_second in parsed_data if lower_bound <= value <= upper_bound]
-    
-    # """重新編排 y 軸"""
-    # listTemp = [(value, new_y, time_second) for new_y, (value, time_second) in enumerate(filtered_data)]
-
-    """計算離群值數量"""
-    outlier_count = len(values) - len(listTemp)
-    total_after_outlier_removal = len(listTemp)
-    print(f"--離群值數量: {outlier_count}")
-    print(f"--扣除離群值後剩餘: {total_after_outlier_removal}")
-    
-    # print(f"輸出格式為\n{listTemp}")  ## list
-
-    # """繪製訊號圖"""
-    # plt.figure(figsize=(12, 5))
-
-    # # 從list中提取值
-    # filtered_values = [val for val, _ in listTemp]
-    # time_second_index = [time_second for _, time_second in listTemp]
-
-    # plt.plot(time_second_index, filtered_values, color="b", markersize=3, linestyle="-", label="Signal")
-
-    # # 添加均值虛線
-    # plt.axhline(mean_val, color="r", linestyle="--", label="Mean")
-
-    # # 標記離群值範圍
-    # plt.fill_between(time_second_index, lower_bound, upper_bound, color="gray", alpha=0.2, label="Mean ± 2STD")
-
-    # plt.xlabel("Time (seconds)")
-    # plt.ylabel("Value")
-    # plt.title("Filtered Signal")
-    # plt.legend()
-    # plt.grid(True)
-
-    # plt.show()
-
-    return np.array(listTemp)  # 回傳整理後的數據
 
 def extract_metadata(filepath):
     parts = filepath.split(os.sep)
@@ -126,7 +37,7 @@ def extract_segment_features(signal, window_size):
     return segments
 
 def process_file(filepath, window_size):
-    signal = read_from_file(filepath)
+    signal = pp.read_from_file(filepath)
 
     time_processed = pp.preProcessing_timeDomain(signal)
     freq_processed = pp.preProcessing_freqDomain(signal)
@@ -147,7 +58,7 @@ def process_file(filepath, window_size):
             'segment': f'seg{i}',
         }
         row.update({f"time_{k}": v for k, v in time_features.items()})
-        row.update({f"time_{k}": v for k, v in freq_features.items()})
+        row.update({f"freq_{k}": v for k, v in freq_features.items()})
         rows.append(row)
     return rows
 
@@ -215,8 +126,8 @@ def execute_action():
     df_wide = pd.DataFrame(new_rows)
     df_final = df_wide.groupby(['case', 'segment'], as_index=False).first()
 
-    # timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')  # 加入時間戳記
-    output_filename_wide = f"Features_by_segment_WIDE.csv"
+    timestamp = datetime.now().strftime('%Y%m%d')  # 加入時間戳記
+    output_filename_wide = f"Features_by_segment_WIDE_{timestamp}.csv"
     output_path = os.path.join(output_folder, output_filename_wide)
     
     # 如果檔案不存在，就加上欄位標題；若已存在，就只寫內容（不重複寫欄位）
@@ -231,7 +142,7 @@ def execute_action():
 """介面"""
 root = tk.Tk()
 root.title("RPPG前處理工具_4.0_健康資料版本")
-root.geometry("500x600")
+root.geometry("500x500")
 
 browse_button = tk.Button(root, text="選取大資料夾", command=browse_folder)
 browse_button.pack(pady=5)
