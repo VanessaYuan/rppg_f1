@@ -56,7 +56,96 @@ def plot_data(listTemp, title):
 
     # 顯示圖表
     plt.show()
+"""讀取檔案(3版)"""
+def read_from_file(file_path):
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
 
+    """原始數據長度"""
+    total_original = len(lines)
+    print(f"\n--原始數據點數: {total_original}")
+
+    # if total_original < 1000:  
+    #     print("數據長度不足")
+    #     return np.array([])
+
+    """去掉最前面 150 個點和最後面 50 個點"""
+    lines = lines[100:-50]
+    total_after_trim = len(lines)
+    print(f"--去頭 100、去尾 50 後剩餘: {total_after_trim}")
+
+    # """只保留第 200 到 1000 點"""
+    # lines = lines[200:1001]
+    # total_after_trim = len(lines)
+    # print(f"--篩選後剩餘: {total_after_trim}")
+
+    """解析數據"""
+    parsed_data = []  # 存儲 (value, timestamp)
+    values = []  # 只存數值部分
+    first_timestamp = None  # 記錄第一個時間戳
+
+    for line in lines:
+        data_tpm = line.strip().split(",")
+        try:
+            value = float(data_tpm[1])  # 解析數值
+            timestamp = datetime.strptime(data_tpm[0], "%H:%M:%S.%f")  # 解析時間
+            
+            if first_timestamp is None:
+                first_timestamp = timestamp  # 記錄第一個時間
+            
+            # 計算與第一個時間的時間差（以秒為單位）
+            time_second = (timestamp - first_timestamp).total_seconds()
+
+            parsed_data.append((value, time_second))  # 存數據
+            values.append(value)  # 存數值
+        except Exception as e:
+            print(f"數據解析錯誤: {line.strip()}，錯誤: {e}")
+
+    """計算平均值與標準差"""
+    mean_val = np.mean(values)
+    std_val = np.std(values)
+    lower_bound = mean_val - 2 * std_val
+    upper_bound = mean_val + 2 * std_val
+    print(f"--離群值範圍: 小於 {lower_bound:.2f} 或 大於 {upper_bound:.2f} 的數據將被排除")
+
+    """篩選數據"""
+    listTemp = [(value, time_second) for value, time_second in parsed_data if lower_bound <= value <= upper_bound]
+    
+    # """重新編排 y 軸"""
+    # listTemp = [(value, new_y, time_second) for new_y, (value, time_second) in enumerate(filtered_data)]
+
+    """計算離群值數量"""
+    outlier_count = len(values) - len(listTemp)
+    total_after_outlier_removal = len(listTemp)
+    print(f"--離群值數量: {outlier_count}")
+    print(f"--扣除離群值後剩餘: {total_after_outlier_removal}")
+    
+    # print(f"輸出格式為\n{listTemp}")  ## list
+
+    # """繪製訊號圖"""
+    # plt.figure(figsize=(12, 5))
+
+    # # 從list中提取值
+    # filtered_values = [val for val, _ in listTemp]
+    # time_second_index = [time_second for _, time_second in listTemp]
+
+    # plt.plot(time_second_index, filtered_values, color="b", markersize=3, linestyle="-", label="Signal")
+
+    # # 添加均值虛線
+    # plt.axhline(mean_val, color="r", linestyle="--", label="Mean")
+
+    # # 標記離群值範圍
+    # plt.fill_between(time_second_index, lower_bound, upper_bound, color="gray", alpha=0.2, label="Mean ± 2STD")
+
+    # plt.xlabel("Time (seconds)")
+    # plt.ylabel("Value")
+    # plt.title("Filtered Signal")
+    # plt.legend()
+    # plt.grid(True)
+
+    # plt.show()
+
+    return np.array(listTemp)  # 回傳整理後的數據
 
 """三角平滑化"""
 def smoothTriangle(data, degree):
@@ -85,7 +174,7 @@ def smooth_signal(listTemp,timeWindow):
         # mode 用於選擇邊界處理方式，默認 'interp'。
         listTemp[:,0] = scipy.signal.savgol_filter(listTemp[:,0].astype(float), timeWindow, 2)
 
-        plot_data(listTemp[:,0])
+        # plot_data(listTemp[:,0])
         #將信號畫成圖型 #平滑化
         # 兩圖合併(listTemp_處理前,listTemp,"Smoothing")
         return listTemp
@@ -329,25 +418,30 @@ def fit_transform(X, y=None, **fit_params):
         #     return fit(X, y, **fit_params).transform(X)
 
 """線性插值"""
-def interpolated_signal(signal, time_data):
+def interpolated_signal(signal, time_data, fs=12):
 
-    listTemp_list = []
-    L = len(signal) #訊號長度
-    #  event_times = np.linspace(start, stop, num)
-    event_times = np.linspace(time_data[0], time_data[-1], L)
-    #  interpolated = np.interp(x_new, x_old, y_old)
+    """
+    對訊號進行時間重取樣 (插值)，並加上 Hamming window。
+    :param signal: 原始訊號資料 (1D array)
+    :param time_data: 原始時間點 (1D array)
+    :param fs: 目標取樣頻率 (Hz)
+    :return: Nx2 array -> [interpolated_value, new_time]
+    """
+    # 建立新的等間距時間軸 (每 1/fs 秒一筆)
+    event_times = np.arange(time_data[0], time_data[-1], 1/fs)
+
+    # 插值訊號到新時間點
     interpolated = np.interp(event_times, time_data, signal)
-    # 漢明窗
-    interpolated = np.hamming(L) * interpolated 
 
-    # print("Interpolated Signal:", interpolated)
-    # print("Event Times:", event_times)
-    
-    # 合併 interpolated 和 event_times 為一個 numpy 陣列
-    result = np.column_stack((interpolated, event_times))  # 每行包含插值信號和時間
-    # listTemp.append((interpolated,event_times))
+    # 加入 Hamming window
+    window = np.hamming(len(event_times))
+    interpolated = interpolated * window
+
+    # 組合為 2D 陣列
+    result = np.column_stack((interpolated, event_times))
 
     return result
+    
 
 """歸一化"""
 def normalization(listTemp):
@@ -382,7 +476,7 @@ def finding_peaks(signal_data):
     peaks = np.where((diff_values[:-1] > 0) & (diff_values[1:] <= 0))[0] + 1
     troughs = np.where((diff_values[:-1] < 0) & (diff_values[1:] >= 0))[0] + 1
     
-    # # 繪製原始訊號
+    # 繪製原始訊號
     # plt.figure(figsize=(10, 5))
     # plt.plot(times, values, label='Signal', color='blue')
     # plt.scatter(times[peaks], values[peaks], color='red', label='Peaks', marker='^')
@@ -442,69 +536,69 @@ def sdnn_rmssd(ppi_values):
 
     return sdnn, rmssd 
 
-"""取所有peaks，算ptt"""
-def ptt_t_cal(peaks_list, sampling_rate=15):
-    """計算ptt(兩ROI波峰時間差)"""
-    diff_list = []
-    # ptt_t = []
+# """取所有peaks，算ptt"""
+# def ptt_t_cal(peaks_list, sampling_rate=15):
+#     """計算ptt(兩ROI波峰時間差)"""
+#     diff_list = []
+#     # ptt_t = []
     
-    #判斷是否有兩個檔案
-    if len(peaks_list) == 2:
-        list_A = peaks_list[0]
-        list_B = peaks_list[1]
+#     #判斷是否有兩個檔案
+#     if len(peaks_list) == 2:
+#         list_A = peaks_list[0]
+#         list_B = peaks_list[1]
 
-    # 判斷哪一個比較長
-        if len(list_A) > len(list_B):
-            long_list = list_A
-            short_list = list_B
-        else:
-            long_list = list_B
-            short_list = list_A
+#     # 判斷哪一個比較長
+#         if len(list_A) > len(list_B):
+#             long_list = list_A
+#             short_list = list_B
+#         else:
+#             long_list = list_B
+#             short_list = list_A
 
-        cost_matrix = np.zeros((len(long_list), len(short_list)))
-        for i in range(len(long_list)):
-            for j in range(len(short_list)):
-                diff = abs(long_list[i] - short_list[j])
-                cost_matrix[i][j] = diff if diff != 0 else np.inf  # 差值為0則設成無限大
+#         cost_matrix = np.zeros((len(long_list), len(short_list)))
+#         for i in range(len(long_list)):
+#             for j in range(len(short_list)):
+#                 diff = abs(long_list[i] - short_list[j])
+#                 cost_matrix[i][j] = diff if diff != 0 else np.inf  # 差值為0則設成無限大
     
-        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+#         row_ind, col_ind = linear_sum_assignment(cost_matrix)
         
-        # print("\n最佳配對：")
-        for i, j in zip(row_ind, col_ind):
-            diff = abs(long_list[i] - short_list[j])
-            # print(f"{long_list[i]} ↔ {short_list[j]}, 差值: {diff}")
-            diff_list.append(diff)
-        print("\n--所有PTT：\n", diff_list)
+#         # print("\n最佳配對：")
+#         for i, j in zip(row_ind, col_ind):
+#             diff = abs(long_list[i] - short_list[j])
+#             # print(f"{long_list[i]} ↔ {short_list[j]}, 差值: {diff}")
+#             diff_list.append(diff)
+#         print("\n--所有PTT：\n", diff_list)
 
-        # 計算 mean 和 std
-        filtered_ptt_array = np.array(diff_list)
-        mean_ptt = np.mean(filtered_ptt_array)
-        std_ptt = np.std(filtered_ptt_array)
+#         # 計算 mean 和 std
+#         filtered_ptt_array = np.array(diff_list)
+#         mean_ptt = np.mean(filtered_ptt_array)
+#         std_ptt = np.std(filtered_ptt_array)
 
-        # 保留落在 [mean - 2*std, mean + 2*std] 範圍內的值
-        inlier_ptt = filtered_ptt_array[
-            (filtered_ptt_array >= mean_ptt - 2 * std_ptt) &
-            (filtered_ptt_array <= mean_ptt + 2 * std_ptt)
-        ]
+#         # 保留落在 [mean - 2*std, mean + 2*std] 範圍內的值
+#         inlier_ptt = filtered_ptt_array[
+#             (filtered_ptt_array >= mean_ptt - 2 * std_ptt) &
+#             (filtered_ptt_array <= mean_ptt + 2 * std_ptt)
+#         ]
 
-        print("過濾後的PTT（排除離群值）：\n", inlier_ptt)
+#         print("過濾後的PTT（排除離群值）：\n", inlier_ptt)
 
-        if len(inlier_ptt) > 0:
-            avg_ptt_points = np.mean(inlier_ptt)
-            avg_ptt_seconds = avg_ptt_points / sampling_rate
-            ptt_t = round(avg_ptt_seconds,3)
-            print(f"\n--平均波峰點數差：{ptt_t:.2f}")
-            print(f"--平均PTT時間差（秒）: {ptt_t:.3f} 秒")
-        else:
-            print("\n所有資料都被視為離群值，無法計算平均")
+#         if len(inlier_ptt) > 0:
+#             avg_ptt_points = np.mean(inlier_ptt)
+#             avg_ptt_seconds = avg_ptt_points / sampling_rate
+#             ptt_t = round(avg_ptt_seconds,3)
+#             print(f"\n--平均波峰點數差：{ptt_t:.2f}")
+#             print(f"--平均PTT時間差（秒）: {ptt_t:.3f} 秒")
+#         else:
+#             print("\n所有資料都被視為離群值，無法計算平均")
 
-        # unmatched_indices = set(range(len(long_list))) - set(row_ind)
-        # unmatched_values = [long_list[i] for i in unmatched_indices]
-        # print("\n應刪除的波峰索引（多餘的）:", unmatched_values)
+#         # unmatched_indices = set(range(len(long_list))) - set(row_ind)
+#         # unmatched_values = [long_list[i] for i in unmatched_indices]
+#         # print("\n應刪除的波峰索引（多餘的）:", unmatched_values)
 
-    else:
-        print("\n目前僅有一組波峰索引，尚無法進行配對比較，等待下一筆資料...")
-    return ptt_t
+#     else:
+#         print("\n目前僅有一組波峰索引，尚無法進行配對比較，等待下一筆資料...")
+#     return ptt_t
 
 """找主/次波峰波谷"""
 def finding_peaks_bp(signal_data, threshold = 0.1):
@@ -618,111 +712,97 @@ def bp_features_cal(values, times, peaks,troughs, target_valleys, signal_data):
 
 
 """SampEn、ApEn計算"""
-def embed_seq(x, m):
-    """建立 m 維嵌入序列"""
-    N = len(x)
-    return np.array([x[i:i + m] for i in range(N - m + 1)])
+def compute_non_linear_features(signal):
+    """計算非線性特徵"""
+    if len(signal) < 100:  # 確保訊號長度足夠
+        return 0, 0
+    
+    # 設定預設參數
+    m = 2  # 維度
+    r = 0.2 * np.std(signal)  # 容忍範圍
+    
+    def sampen_fun(signal, m=2, r=0.2):
+        """計算樣本熵 - 使用向量化運算優化"""
+        N = len(signal)
+        # 建立模板
+        xm1 = np.array([signal[i:i+m] for i in range(N-m)])
+        xm2 = np.array([signal[i:i+m+1] for i in range(N-m)])
+        
+        # 計算匹配數
+        B = np.sum([np.sum(np.abs(x - xm1).max(axis=1) <= r) - 1 for x in xm1])
+        A = np.sum([np.sum(np.abs(x - xm2).max(axis=1) <= r) - 1 for x in xm2])
+        
+        return -np.log(A/B) if A > 0 and B > 0 else np.inf
+    
+    def apen_fun(signal, m=2, r=0.2):
+        """計算近似熵 - 保持原有實現"""
+        def _phi(m):
+            x = np.array([signal[i:i + m] for i in range(len(signal) - m + 1)])
+            C = np.sum(np.max(np.abs(x[:, None] - x[None, :]), axis=2) <= r, axis=0)
+            C = C / (len(signal) - m + 1)
+            return np.sum(np.log(C)) / (len(signal) - m + 1)
+        return abs(_phi(m) - _phi(m + 1))
+    
+    # 計算熵值
+    ap_entropy = apen_fun(signal, m, r)
+    sampen_entropy = sampen_fun(signal, m, r)
+    
+    return ap_entropy, sampen_entropy
 
-def fast_sampen(x, m=2, r=None):
-    """使用 KD-Tree 加速的 SampEn 計算"""
-    x = np.array(x)
-    if r is None:
-        r = 0.2 * np.std(x)
-    eps = 1e-10  # 防止 log(0)
-
-    Xm = embed_seq(x, m)
-    Xm1 = embed_seq(x, m + 1)
-
-    def count_pairs(X):
-        tree = KDTree(X, leafsize=16)
-        count = 0
-        for i, xi in enumerate(X):
-            # 查找在距離 r 內的鄰居，排除自己
-            neighbors = tree.query_ball_point(xi, r, p=np.inf)
-            count += len(neighbors) - 1  # 不包含自己
-        return count
-
-    B = count_pairs(Xm)
-    A = count_pairs(Xm1)
-
-    if B == 0:
-        return np.inf
-    else:
-        return -np.log((A + eps) / (B + eps))
-
-def fast_apen(x, m=2, r=None):
-    """使用 KD-Tree 加速的 ApEn 計算"""
-    x = np.array(x)
-    if r is None:
-        r = 0.2 * np.std(x)
-    eps = 1e-10
-
-    def phi(X):
-        N = len(X)
-        tree = KDTree(X, leafsize=16)
-        C = np.zeros(N)
-        for i, xi in enumerate(X):
-            neighbors = tree.query_ball_point(xi, r, p=np.inf)
-            C[i] = (len(neighbors)) / N  # 包含自己
-        C = np.where(C == 0, eps, C)
-        return np.sum(np.log(C)) / N
-
-    Xm = embed_seq(x, m)
-    Xm1 = embed_seq(x, m + 1)
-
-    return abs(phi(Xm) - phi(Xm1))
-# # 計算距離：max norm（Chebyshev距離）
-# def _max_dist(x_i, x_j):
-#     return np.max(np.abs(x_i - x_j))
-
-# # 建立 m 維向量序列
-# def _embed_seq(x, m):
+# def embed_seq(x, m):
+#     """建立 m 維嵌入序列"""
 #     N = len(x)
 #     return np.array([x[i:i + m] for i in range(N - m + 1)])
 
-# # Sample Entropy（SampEn）
-# def sampen_cal(x, m, r):
-#     N = len(x)
+# def fast_sampen(x, m=2, r=None):
+#     """使用 KD-Tree 加速的 SampEn 計算"""
 #     x = np.array(x)
-#     Xm = _embed_seq(x, m)
-#     Xm1 = _embed_seq(x, m + 1)
-#     eps = 1e-10 #epsilon(最小常數) = 1e-10，避免分母為0
+#     if r is None:
+#         r = 0.2 * np.std(x)
+#     eps = 1e-10  # 防止 log(0)
 
-#     def _count_matches(X):
-#         N_temp = len(X)
+#     Xm = embed_seq(x, m)
+#     Xm1 = embed_seq(x, m + 1)
+
+#     def count_pairs(X):
+#         tree = KDTree(X, leafsize=16)
 #         count = 0
-#         for i in range(N_temp):
-#             for j in range(i + 1, N_temp): # 不與自己比
-#                 if _max_dist(X[i], X[j]) <= r:
-#                     count += 1
+#         for i, xi in enumerate(X):
+#             # 查找在距離 r 內的鄰居，排除自己
+#             neighbors = tree.query_ball_point(xi, r, p=np.inf)
+#             count += len(neighbors) - 1  # 不包含自己
 #         return count
 
-#     B = _count_matches(Xm)
-#     A = _count_matches(Xm1)
+#     B = count_pairs(Xm)
+#     A = count_pairs(Xm1)
 
-#     if B == 0 or A == 0:
+#     if B == 0:
 #         return np.inf
 #     else:
-#         return -np.log( (A+ eps) /(B + eps))
+#         return -np.log((A + eps) / (B + eps))
 
-# # Approximate Entropy（ApEn）
-# def apen_cal(x, m, r):
-#     N = len(x)
+# def fast_apen(x, m=2, r=None):
+#     """使用 KD-Tree 加速的 ApEn 計算"""
 #     x = np.array(x)
-#     Xm = _embed_seq(x, m)
-#     Xm1 = _embed_seq(x, m + 1)
-#     eps = 1e-10 #epsilon(最小常數) = 1e-10，避免 log(0)
+#     if r is None:
+#         r = 0.2 * np.std(x)
+#     eps = 1e-10
 
-#     def _phi(X):
-#         N_temp = len(X)
-#         C = np.zeros(N_temp)
-#         for i in range(N_temp):
-#             dist = np.array([_max_dist(X[i], X[j]) for j in range(N_temp)])
-#             count = np.sum(dist <= r)
-#             C[i] = count / N_temp if count > 0 else eps  # epsilon(最小常數) = 1e-10，避免 log(0)
-#         return np.sum(np.log(C)) / N_temp
+#     def phi(X):
+#         N = len(X)
+#         tree = KDTree(X, leafsize=16)
+#         C = np.zeros(N)
+#         for i, xi in enumerate(X):
+#             neighbors = tree.query_ball_point(xi, r, p=np.inf)
+#             C[i] = (len(neighbors)) / N  # 包含自己
+#         C = np.where(C == 0, eps, C)
+#         return np.sum(np.log(C)) / N
 
-#     return _phi(Xm) - _phi(Xm1)
+#     Xm = embed_seq(x, m)
+#     Xm1 = embed_seq(x, m + 1)
+
+#     return abs(phi(Xm) - phi(Xm1))
+
 
 
 """傅立葉+LF、HF計算"""
@@ -797,62 +877,49 @@ def lfhf_cal(fft_freq, fft_power):
     
     
 """傅立葉+HR計算"""
-def hr_cal(fft_freq,fft_power):
+def hr_cal(fft_freq, fft_power):
+    # 將頻率轉換為 BPM（beats per minute）
+    hr_freqs = 60.0 * fft_freq
 
-    # values, timestamps = zip(*listTemp)  
-    # values = np.array(values)
-    # timestamps = np.array(timestamps)
+    # 心率合理範圍：60 ~ 120 BPM（可依需要調整）
+    hr_idx = np.where((hr_freqs > 60) & (hr_freqs < 120))[0]
 
-    # # # 計算取樣率
-    # # duration = timestamps[-1] - timestamps[0]
-    # # fps = len(timestamps) / duration
-    # # print(f"\n自動推算 fps: {fps:.2f} Hz")
+    # 確認是否有有效範圍資料
+    if len(hr_idx) == 0:
+        print("心率: 無法估算（無有效頻率範圍）")
+        return -1
 
-    # n = len(values)
-    # raw2 = np.fft.rfft(values*100) # 放大振幅，不影響頻率
-    # # fft_freq = float(fps) / n * np.arange(n / 2 + 1) # 手動算頻率軸(x軸)
-    # fft_freq = np.fft.rfftfreq(n, d=1/fps) # 正頻率對應的頻率軸
-    # fft_power = np.abs(raw2)**2
+    # 擷取指定範圍內的頻率與功率
+    pruned_freq = hr_freqs[hr_idx]
+    pruned_power = fft_power[hr_idx]
 
-    # # 畫圖
+    # ---------- 方法一：argmax ----------
+    bpm_argmax = pruned_freq[np.argmax(pruned_power)]
+
+    # ---------- 方法二：加權平均 ----------
+    # 加權平均：每個頻率 × 對應的功率，再除以總功率
+    bpm_weighted = np.sum(pruned_freq * pruned_power) / np.sum(pruned_power)
+
+    # ---------- 視覺化 ----------
     # plt.figure(figsize=(10, 4))
-    # plt.plot(fft_freq, fft_power, color='blue')
-    # plt.title("Frequency Domain (FFT)-HR222222")
-    # plt.xlabel("Frequency (Hz)")
-    # plt.ylabel("Amplitude")
+    # plt.plot(pruned_freq, pruned_power, color='blue', label='FFT Power')
+    # plt.axvline(bpm_argmax, color='red', linestyle='--', label=f"argmax = {bpm_argmax:.2f} BPM")
+    # plt.axvline(bpm_weighted, color='green', linestyle='--', label=f"weighted = {bpm_weighted:.2f} BPM")
+    # plt.title("Frequency Domain (FFT)-HR")
+    # plt.xlabel("BPM")
+    # plt.ylabel("Power")
     # plt.grid(True)
-    # plt.xlim(0, 1)  # 可視範圍建議 0~1 Hz，若要分析 HR 可到 3~4 Hz
+    # plt.legend()
+    # plt.xlim(50, 130)
     # plt.tight_layout()
     # plt.show()
 
-    hr_freqs = 60. * fft_freq
-    hr_idx = np.where((hr_freqs > 60) & (hr_freqs < 120))
-    
-    pruned = fft_power[hr_idx]
-    pfreq = hr_freqs[hr_idx]
-    
-    try:
-        idx_hr = np.argmax(pruned)
-        bpm = pfreq[idx_hr]
-    except:
-        bpm = -1  # 代表無法估算
+    print(f"[argmax] 主頻 BPM：{bpm_argmax:.2f}")
+    print(f"[加權平均] 主頻 BPM：{bpm_weighted:.2f}")
 
-    # 找主導頻率
-    if np.any(hr_idx):
-        peak_idx = np.argmax(fft_power[hr_idx])
-        peak_freq = fft_freq[hr_idx][peak_idx]
-    else:
-        peak_freq = 0
-        bpm = -1  # 無法估算
+    # 建議回傳加權平均值作為主要估算結果
+    return bpm_weighted
 
-    print(f"Dominant Frequency: {peak_freq:.3f} Hz")
-
-    if bpm > 0:
-        print(f"心率: {bpm:.2f} BPM")
-    else:
-        print("心率: 無法估算（主頻為 0）")
-    
-    return bpm
     
 
 """時域計算+前處理"""
@@ -884,13 +951,13 @@ def preProcessing_timeDomain(listTemp):
 
         ## smoothTriangle(data, degree)
         listTemp[:,0] = smoothTriangle(listTemp[:,0], 5)
-        
-        #plot_data(listTemp,"Smoothing 1 ")
+
+        # plot_data(listTemp,"Smoothing 1 ")
     except Exception as e:
         print("Smoothing fail" + str(e))     
 
     """帶通濾波"""
-    # try:
+    try:
     #     # listTemp_處理前 = listTemp.copy()
         
     #     #原始程式使用的帶通濾波處理程式碼
@@ -911,25 +978,27 @@ def preProcessing_timeDomain(listTemp):
     #     # time = np.linspace(0, 0.02, 52)
 
     #     # bandPass_filter(signal, fs=12, lowcut=0.01, highcut=3, order=2):
-    listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 3 ,2)
+        listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 3 ,2)
 
     #     # 帶通濾波處理
-    #     plot_data(listTemp,"Bandpass Filtering")
+        # plot_data(listTemp,"Bandpass Filtering")
     #     # 兩圖合併(listTemp_處理前,listTemp,"Bandpass Filtering")
-    # except Exception as e:
-    #     print("Bandpass Filtering fail" + str(e))
+    except Exception as e:
+        print("Bandpass Filtering fail" + str(e))
 
     """線性插值法+漢明窗"""
     try:
         # 使用 listTemp[:, 0] (值) 和 listTemp[:, 1] (時間)
-        listTemp = interpolated_signal(listTemp[:, 0], listTemp[:, 1])
+        listTemp = interpolated_signal(listTemp[:, 0], listTemp[:, 1], 12)
         #plot_data(listTemp, "Interpolated")
 
         # # # 標準化插值結果(為何要兩個norm)
         # listTemp[:,0] = (listTemp[:,0] - np.mean(listTemp[:,0])) / np.std(listTemp[:,0])  
         # listTemp[:,0] = listTemp[:,0]/np.linalg.norm(listTemp[:,0])
         # 繪製插值後的信號
-        # plot_data(listTemp, "norm")
+        print("interpolated點數:", len(listTemp))
+        # plot_data(listTemp, "interpolated")
+        
 
     except Exception as e:
         print(f"Interpolated fail: {e}")
@@ -951,7 +1020,7 @@ def preProcessing_timeDomain(listTemp):
         listTemp[:,0] = smoothTriangle(listTemp[:,0], 5)
         
         #將信號畫成圖型 
-        #plot_data(listTemp,"Smoothing 2")
+        # plot_data(listTemp,"Smoothing 2")
     except Exception as e:
         print("Smoothing 2 fail \n" + str(e))   
 
@@ -962,7 +1031,7 @@ def preProcessing_timeDomain(listTemp):
         # listTemp = baseline_removal2(listTemp,100)
         listTemp = baseline_removal(listTemp,2,100)
 
-        #plot_data(listTemp," Baseline correction")
+        # plot_data(listTemp," Baseline correction")
     except Exception as e:
         print("Baseline correction fail" + str(e))
 
@@ -972,7 +1041,7 @@ def preProcessing_timeDomain(listTemp):
         listTemp[:,0] = smoothTriangle(listTemp[:,0], 5)
         
         #將信號畫成圖型 
-        #plot_data(listTemp,"Smoothing 3")
+        # plot_data(listTemp,"Smoothing 3")
     except Exception as e:
         print("Smoothing 3 fail \n" + str(e))
 
@@ -994,7 +1063,7 @@ def preProcessing_timeDomain(listTemp):
 
         # listTemp[:,0:1] = normalize_with_time_window(listTemp[:,0:1],100)
 
-        #plot_data(listTemp,"Normalization")
+        # plot_data(listTemp,"Normalization")
     except Exception as e:
         print("Normalization fail" + str(e))
     
@@ -1034,7 +1103,7 @@ def preProcessing_freqDomain(listTemp):
     """線性插值法+漢明窗"""
     try:
         # 使用 listTemp[:, 0] (值) 和 listTemp[:, 1] (時間)
-        listTemp = interpolated_signal(listTemp[:, 0], listTemp[:, 1])
+        listTemp = interpolated_signal(listTemp[:, 0], listTemp[:, 1], 12)
         #plot_data(listTemp, "Interpolated")
 
     except Exception as e:
@@ -1161,15 +1230,17 @@ def time_features_cal(listTemp):
     """計算近似商、樣本商"""
     try:
         # # 設定參數
-        m = 2
-        r = 0.15 * np.std(listTemp[:,0])
+        # m = 2
+        # r = 0.15 * np.std(listTemp[:,0])
 
         # # 計算 ApEn 和 SampEn(data, m, r)
         # #減少 m(維度)（通常用 m=2 是較穩定的起點）
         # #適當增大 r(兩者距離)（建議設為 0.1~0.25 * std(x)）
         
-        apen = fast_apen(listTemp[:,0], m, r)
-        sampen = fast_sampen(listTemp[:,0], m, r)
+        sampen, apen = compute_non_linear_features(listTemp[:,0])
+
+        # apen = fast_apen(listTemp[:,0], m, r)
+        # sampen = fast_sampen(listTemp[:,0], m, r)
 
         # SampEn
         # x 是時間序列，order=m 為維度，r 是容差參數（通常為 std(x) 的 0.1 ~ 0.25 倍）
@@ -1178,12 +1249,12 @@ def time_features_cal(listTemp):
         # # ApEn
         # apen = ant.app_entropy(listTemp[:,0], order=m, r=r)
 
+        sampen = round(sampen,3)
         apen = round(apen,3)
-        sampen = round(apen,3)
-
-        print("Approximate Entropy (ApEn):",apen)
+        
         print("Sample Entropy (SampEn):",sampen)
-
+        print("Approximate Entropy (ApEn):",apen)
+        
     except Exception as e:
         print("Entrppy Calculation Fail"+ str(e))
 
