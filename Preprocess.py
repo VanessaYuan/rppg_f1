@@ -56,6 +56,7 @@ def plot_data(listTemp, title):
 
     # 顯示圖表
     plt.show()
+
 """讀取檔案(3版)"""
 def read_from_file(file_path):
     with open(file_path, 'r') as file:
@@ -69,10 +70,10 @@ def read_from_file(file_path):
     #     print("數據長度不足")
     #     return np.array([])
 
-    """去掉最前面 150 個點和最後面 50 個點"""
-    lines = lines[100:-50]
-    total_after_trim = len(lines)
-    print(f"--去頭 100、去尾 50 後剩餘: {total_after_trim}")
+    # """去掉最前面 150 個點和最後面 50 個點"""
+    # lines = lines[100:-50]
+    # total_after_trim = len(lines)
+    # print(f"--去頭 100、去尾 50 後剩餘: {total_after_trim}")
 
     # """只保留第 200 到 1000 點"""
     # lines = lines[200:1001]
@@ -97,11 +98,31 @@ def read_from_file(file_path):
             time_second = (timestamp - first_timestamp).total_seconds()
 
             parsed_data.append((value, time_second))  # 存數據
-            values.append(value)  # 存數值
+            # values.append(value)  # 存數值
         except Exception as e:
             print(f"數據解析錯誤: {line.strip()}，錯誤: {e}")
 
+    """檢查總時長是否超過 30 秒"""
+    total_duration = parsed_data[-1][1] if parsed_data else 0
+    print(f"--訊號總長度: {total_duration:.2f} 秒")
+
+    if total_duration < 40:
+        # 短於 40 秒，去頭 15 秒與尾 5 秒
+        data_for_filter = [(v, t) for v, t in parsed_data if 15 <= t <= (total_duration - 10)]
+        print(f"--訊號不足 40 秒，保留中間區段(15~{total_duration - 5:.2f}) 秒，共 {len(data_for_filter)} 點")
+    else:
+        # 保留 40～80 秒區段
+        data_for_filter = [(v, t) for v, t in parsed_data if 40 <= t <= 80]
+        print(f"--保留時間 40~80 秒後剩餘: {len(data_for_filter)}")
+
+    if not data_for_filter:
+        print("--無有效資料，結束處理")
+        return np.array([])
+
+
     """計算平均值與標準差"""
+    values = [v for v, _ in data_for_filter]
+
     mean_val = np.mean(values)
     std_val = np.std(values)
     lower_bound = mean_val - 2 * std_val
@@ -109,25 +130,25 @@ def read_from_file(file_path):
     print(f"--離群值範圍: 小於 {lower_bound:.2f} 或 大於 {upper_bound:.2f} 的數據將被排除")
 
     """篩選數據"""
-    listTemp = [(value, time_second) for value, time_second in parsed_data if lower_bound <= value <= upper_bound]
+    final_data = [(v, t) for v, t in data_for_filter if lower_bound <= v <= upper_bound]
     
     # """重新編排 y 軸"""
-    # listTemp = [(value, new_y, time_second) for new_y, (value, time_second) in enumerate(filtered_data)]
+    # listTemp = [(value, new_y, time_second) for new_y, (value, time_second) in enumerate(parsed_data)]
 
     """計算離群值數量"""
-    outlier_count = len(values) - len(listTemp)
-    total_after_outlier_removal = len(listTemp)
+    outlier_count = len(values) - len(final_data)
+    total_after_outlier_removal = len(final_data)
     print(f"--離群值數量: {outlier_count}")
     print(f"--扣除離群值後剩餘: {total_after_outlier_removal}")
     
     # print(f"輸出格式為\n{listTemp}")  ## list
 
-    # """繪製訊號圖"""
+    """繪製訊號圖"""
     # plt.figure(figsize=(12, 5))
 
     # # 從list中提取值
-    # filtered_values = [val for val, _ in listTemp]
-    # time_second_index = [time_second for _, time_second in listTemp]
+    # filtered_values = [val for val, _ in final_data ]
+    # time_second_index = [time_second for _, time_second in final_data ]
 
     # plt.plot(time_second_index, filtered_values, color="b", markersize=3, linestyle="-", label="Signal")
 
@@ -145,7 +166,7 @@ def read_from_file(file_path):
 
     # plt.show()
 
-    return np.array(listTemp)  # 回傳整理後的數據
+    return np.array(final_data)  # 回傳整理後的數據
 
 """三角平滑化"""
 def smoothTriangle(data, degree):
