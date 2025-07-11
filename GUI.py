@@ -38,28 +38,35 @@ def extract_metadata(filepath):
 #     return segments
 
 """window size 選擇 + 決定overlap多少點"""
-def extract_segment_features(signal, window_size, overlap_points):
+def extract_segment_features(signal, window_size, step_size):
     segments = []
-    step_size = window_size - overlap_points  # 每次滑動多少點（要保證 > 0）
 
-    if step_size <= 0:
-        raise ValueError("Overlap 太大，必須小於 window_size")
+    total_length = len(signal)
+    
+    if total_length < window_size:
+        # 如果資料長度不足一個 window_size，就直接整段當一個 segment
+        segments.append(signal)
+        return segments
 
-    for start in range(0, len(signal) - window_size + 1, step_size):
+    for start in range(0, total_length - window_size + 1, step_size):
         end = start + window_size
         segment = signal[start:end]
         segments.append(segment)
 
     return segments
 
-def process_file(filepath, window_size, overlap_points):
+
+def process_file(filepath, window_size, step_size):
     signal = pp.read_from_file(filepath)
 
     time_processed = pp.preProcessing_timeDomain(signal)
     freq_processed = pp.preProcessing_freqDomain(signal)
 
-    time_segments = extract_segment_features(time_processed, window_size, overlap_points)
-    freq_segments = extract_segment_features(freq_processed, window_size, overlap_points)
+    time_segments = extract_segment_features(time_processed, window_size, step_size)
+    freq_segments = extract_segment_features(freq_processed, window_size, step_size)
+
+    # time_segments = extract_segment_features(signal, window_size, overlap_points)
+    # freq_segments = extract_segment_features(signal, window_size, overlap_points)
 
     case, roi, color = extract_metadata(filepath)
 
@@ -71,7 +78,7 @@ def process_file(filepath, window_size, overlap_points):
             'case': case,
             'roi': roi,
             'color': color,
-            'segment': f'seg{i}',
+            'segment': i,
         }
         row.update({f"time_{k}": v for k, v in time_features.items()})
         row.update({f"freq_{k}": v for k, v in freq_features.items()})
@@ -85,7 +92,16 @@ def execute_action():
         return
 
     window_size = int(segment_window_entry.get())
-    overlap_points = int(overlap_entry.get())
+    step_size = int(overlap_entry.get())
+
+    # fs = 12  # 取得取樣率
+
+    # window_sec = int(segment_window_entry.get())
+    # overlap_sec = int(overlap_entry.get())
+
+    # window_size = fs * window_sec
+    # overlap_points = fs * overlap_sec
+
     all_rows = []
 
     # 準備輸出資料夾
@@ -111,8 +127,10 @@ def execute_action():
     # 處理每個檔案
     for idx, filepath in enumerate(all_txt_files):
         try:
-            rows = process_file(filepath, window_size, overlap_points)
+            rows = process_file(filepath, window_size, step_size)
             all_rows.extend(rows)
+
+            print("time window點數:", window_size)
         except Exception as e:
             print(f"處理檔案失敗：{filepath}，錯誤訊息：{e}")
         
@@ -144,7 +162,7 @@ def execute_action():
     df_final = df_wide.groupby(['case', 'segment'], as_index=False).first()
 
     timestamp = datetime.now().strftime('%Y%m%d')  # 加入時間戳記
-    output_filename_wide = f"Features_by_segment_WIDE_{timestamp}.csv"
+    output_filename_wide = f"Features_{timestamp}.csv"
     output_path = os.path.join(output_folder, output_filename_wide)
     
     # 如果檔案不存在，就加上欄位標題；若已存在，就只寫內容（不重複寫欄位）
@@ -155,7 +173,7 @@ def execute_action():
     messagebox.showinfo("完成", f"特徵已儲存至：\n{output_folder}")
     subprocess.Popen(f'explorer "{output_folder}"')
     print(f"window:", window_size)
-    print(f"overlap:",overlap_points)
+    print(f"overlap:",step_size)
     print(f"本次輸出 {len(df_final)} 筆 case-segment 特徵（寬表格，每筆一列）")
 
 
@@ -172,17 +190,21 @@ file_label.pack(pady=5)
 
 # Time Window
 segment_window_label = tk.Label(root, text="Time Window Size(points):")
+# segment_window_label = tk.Label(root, text="Time Window Size(sec):")
 segment_window_label.pack(pady=(10, 0))
 segment_window_entry = tk.Entry(root)
 segment_window_entry.pack(pady=5)
-segment_window_entry.insert(0, "180")  # 預設為 180 點
+segment_window_entry.insert(0, "300")  # 預設為 180 點
+# segment_window_entry.insert(0, "15")  # 預設為 10 秒
 
 # Overlap Entry
-overlap_label = tk.Label(root, text="Overlap Points (u):")
+overlap_label = tk.Label(root, text="step_size Points (points):")
+# overlap_label = tk.Label(root, text="Overlap Points (sec):")
 overlap_label.pack()
 overlap_entry = tk.Entry(root)
 overlap_entry.pack()
-overlap_entry.insert(0, "50")  # 預設重疊 50 點
+overlap_entry.insert(0, "12")  # 預設重疊 50 點
+# overlap_entry.insert(0, "8")  # 預設重疊 50 點
 
 # 進度條
 progress_label = tk.Label(root, text="處理進度：")
