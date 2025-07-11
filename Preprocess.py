@@ -101,49 +101,84 @@ def read_from_file(file_path):
             # values.append(value)  # 存數值
         except Exception as e:
             print(f"數據解析錯誤: {line.strip()}，錯誤: {e}")
-
-    """檢查總時長是否超過 30 秒"""
+    
+    """檢查總時長是否超過 秒"""
     total_duration = parsed_data[-1][1] if parsed_data else 0
     print(f"--訊號總長度: {total_duration:.2f} 秒")
 
-    if total_duration < 40:
-        # 短於 40 秒，去頭 15 秒與尾 5 秒
-        data_for_filter = [(v, t) for v, t in parsed_data if 15 <= t <= (total_duration - 10)]
-        print(f"--訊號不足 40 秒，保留中間區段(15~{total_duration - 5:.2f}) 秒，共 {len(data_for_filter)} 點")
-    else:
-        # 保留 40～80 秒區段
-        data_for_filter = [(v, t) for v, t in parsed_data if 40 <= t <= 80]
-        print(f"--保留時間 40~80 秒後剩餘: {len(data_for_filter)}")
+    # 根據不同長度決定保留區間
+    if total_duration > 120:
+        data_for_filter = [(v, t) for v, t in parsed_data if 90 <= t <= 120]
+        print(f"--訊號長度 > 120 秒，保留 90~120 秒，共 {len(data_for_filter)} 點")
 
-    if not data_for_filter:
-        print("--無有效資料，結束處理")
+    elif total_duration > 90:
+        data_for_filter = [(v, t) for v, t in parsed_data if 60 <= t <= 90]
+        print(f"--訊號長度 90~120 秒，保留 60~90 秒，共 {len(data_for_filter)} 點")
+
+    elif total_duration > 60:
+        data_for_filter = [(v, t) for v, t in parsed_data if 45 <= t <= 75]
+        print(f"--訊號長度 60~90 秒，保留 45~75 秒，共 {len(data_for_filter)} 點")
+
+    else:
+        print("--訊號長度 ≤ 60 秒，跳過處理")
+        return np.array([])
+
+     # 若資料點不足 300，跳過
+    point_count = len(data_for_filter)
+    if point_count < 300:
+        print(f"--點數少於 300（目前 {point_count} 點），跳過處理")
         return np.array([])
 
 
-    """計算平均值與標準差"""
-    values = [v for v, _ in data_for_filter]
+    """病人用:檢查總時長是否超過 30 秒"""
+    # total_duration = parsed_data[-1][1] if parsed_data else 0
+    # print(f"--訊號總長度: {total_duration:.2f} 秒")
 
-    mean_val = np.mean(values)
-    std_val = np.std(values)
-    lower_bound = mean_val - 2 * std_val
-    upper_bound = mean_val + 2 * std_val
-    print(f"--離群值範圍: 小於 {lower_bound:.2f} 或 大於 {upper_bound:.2f} 的數據將被排除")
+    # if total_duration < 30:
+    #     # 短於 40 秒，去頭 15 秒與尾 5 秒
+    #     # data_for_filter = [(v, t) for v, t in parsed_data if 15 <= t <= (total_duration - 10)]
+    #     # print(f"--訊號不足 40 秒，保留中間區段(15~{total_duration - 5:.2f}) 秒，共 {len(data_for_filter)} 點")
+    #     print("--訊號不足 30 秒，跳過處理")
+    #     return np.array([])
+    
+    # # 保留 45～75 秒區段
+    # data_for_filter = [(v, t) for v, t in parsed_data if 45 <= t <= 75]
+    # point_count = len(data_for_filter)
+    # duration_range = data_for_filter[-1][1] - data_for_filter[0][1] if point_count > 1 else 0
+    # print(f"--保留時間 45~75 秒後剩餘: {point_count} 點（約 {duration_range:.2f} 秒）")
+
+    #  # 若資料點不足 200，跳過
+    # if point_count < 200:
+    #     print("--點數少於 200，跳過處理")
+    #     return np.array([])
+
+
+    """計算平均值與標準差"""
+    # # values = [v for v, _ in data_for_filter]
+    # values = [v for v, _ in parsed_data]
+
+    # mean_val = np.mean(values)
+    # std_val = np.std(values)
+    # lower_bound = mean_val - 2 * std_val
+    # upper_bound = mean_val + 2 * std_val
+    # print(f"--離群值範圍: 小於 {lower_bound:.2f} 或 大於 {upper_bound:.2f} 的數據將被排除")
 
     """篩選數據"""
-    final_data = [(v, t) for v, t in data_for_filter if lower_bound <= v <= upper_bound]
-    
+    # final_data = [(v, t) for v, t in data_for_filter if lower_bound <= v <= upper_bound]
+    # final_data = [(v, t) for v, t in parsed_data if lower_bound <= v <= upper_bound]
+
     # """重新編排 y 軸"""
     # listTemp = [(value, new_y, time_second) for new_y, (value, time_second) in enumerate(parsed_data)]
 
     """計算離群值數量"""
-    outlier_count = len(values) - len(final_data)
-    total_after_outlier_removal = len(final_data)
-    print(f"--離群值數量: {outlier_count}")
-    print(f"--扣除離群值後剩餘: {total_after_outlier_removal}")
+    # outlier_count = len(values) - len(final_data)
+    # total_after_outlier_removal = len(final_data)
+    # print(f"--離群值數量: {outlier_count}")
+    # print(f"--扣除離群值後剩餘: {total_after_outlier_removal}")
     
     # print(f"輸出格式為\n{listTemp}")  ## list
 
-    """繪製訊號圖"""
+    # """繪製訊號圖"""
     # plt.figure(figsize=(12, 5))
 
     # # 從list中提取值
@@ -166,7 +201,8 @@ def read_from_file(file_path):
 
     # plt.show()
 
-    return np.array(final_data)  # 回傳整理後的數據
+    # return np.array(final_data)  # 回傳整理後的數據
+    return np.array(data_for_filter)
 
 """三角平滑化"""
 def smoothTriangle(data, degree):
@@ -519,7 +555,7 @@ def finding_peaks(signal_data):
     return peaks, peaks_list
 
 """計算ppi"""
-def ppi_cal(peaks, sampling_rate = 12):
+def ppi_cal(peaks, sampling_rate):
     ppi_values = []
     heart_rates = []
 
@@ -530,20 +566,22 @@ def ppi_cal(peaks, sampling_rate = 12):
         ppi_values.append(ppi)
 
         # 根據 PPI 計算心率 (bpm)
-        # hr = 60000 / ppi  # bpm = 60000 / PPI(ms)
-        # heart_rates.append(hr)
+        hr = 60000 / ppi  # bpm = 60000 / PPI(ms)
+        heart_rates.append(hr)
 
     # 計算平均值
     avg_ppi = np.mean(ppi_values) if ppi_values else 0
     avg_hr = np.mean(heart_rates) if heart_rates else 0
+    avg_hr = round(avg_hr,3)
     
     print("\n--共有", len(ppi_values), "個PPi")
     print("--平均PPi長度:", avg_ppi)
     print("--PPi值(當筆資料)：",ppi_values)
-    # print("\n--平均心率 (HR): {:.2f} bpm".format(avg_hr))
+    # print("\n--平均心率 (HR): {:.3f} bpm".format(avg_hr))
     # print("-- HR 值 (當筆資料):", heart_rates)
 
     return ppi_values
+
 
 """計算SDNN、RMSSD"""
 def sdnn_rmssd(ppi_values):    
@@ -827,16 +865,16 @@ def compute_non_linear_features(signal):
 
 
 """傅立葉+LF、HF計算"""
-def fft_cal(listTemp,fps):
+def fft_cal(listTemp):
 
     values, timestamps = zip(*listTemp)  
     values = np.array(values)
     timestamps = np.array(timestamps)
 
     # 計算取樣率
-    # duration = timestamps[-1] - timestamps[0]
-    # fps = len(timestamps) / duration
-    # print(f"\n Sampling rate = {fps:.2f} Hz")
+    duration = timestamps[-1] - timestamps[0]
+    fps = len(timestamps) / duration
+    print(f"\n Sampling rate = {fps:.2f} Hz")
 
     n = len(values)
     raw2 = np.fft.rfft(values)
@@ -895,12 +933,23 @@ def lfhf_cal(fft_freq, fft_power):
     print(f"LF/HF Ratio: {lf_hf_ratio:.3f}")
 
     return nlf, nhf, lf_hf_ratio
-    
-    
+
 """傅立葉+HR計算"""
-def hr_cal(fft_freq, fft_power):
+def hr_cal(listTemp):
+
+    values, timestamps = zip(*listTemp)  
+    values = np.array(values)
+    timestamps = np.array(timestamps)
+    
+    fps = 12
+    n = len(values)
+    raw2 = np.fft.rfft(values)
+    fft_freq = float(fps) / n * np.arange(n / 2 + 1)
+    fft_power = np.abs(raw2)**2
+
     # 將頻率轉換為 BPM（beats per minute）
-    hr_freqs = 60.0 * fft_freq
+    hr_freqs = 60 * fft_freq
+    fft_power = np.abs(raw2)**2
 
     # 心率合理範圍：60 ~ 120 BPM（可依需要調整）
     hr_idx = np.where((hr_freqs > 60) & (hr_freqs < 120))[0]
@@ -939,7 +988,54 @@ def hr_cal(fft_freq, fft_power):
     print(f"[加權平均] 主頻 BPM：{bpm_weighted:.2f}")
 
     # 建議回傳加權平均值作為主要估算結果
-    return bpm_weighted
+    return bpm_argmax, bpm_weighted
+
+    
+"""傅立葉+HR計算"""
+def hrhr_cal(fft_freq, fft_power):
+
+    # 將頻率轉換為 BPM（beats per minute）
+    hr_freqs = 60 * fft_freq
+
+    # 心率合理範圍：60 ~ 120 BPM（可依需要調整）
+    hr_idx = np.where((hr_freqs > 60) & (hr_freqs < 120))[0]
+
+    # 確認是否有有效範圍資料
+    if len(hr_idx) == 0:
+        print("心率: 無法估算（無有效頻率範圍）")
+        return -1
+
+
+    # 擷取指定範圍內的頻率與功率
+    pruned_freq = hr_freqs[hr_idx]
+    pruned_power = fft_power[hr_idx]
+
+    # ---------- 方法一：argmax ----------
+    bpm_argmax = pruned_freq[np.argmax(pruned_power)]
+
+    # ---------- 方法二：加權平均 ----------
+    # 加權平均：每個頻率 × 對應的功率，再除以總功率
+    bpm_weighted = np.sum(pruned_freq * pruned_power) / np.sum(pruned_power)
+
+    # ---------- 視覺化 ----------
+    # plt.figure(figsize=(10, 4))
+    # plt.plot(pruned_freq, pruned_power, color='blue', label='FFT Power')
+    # plt.axvline(bpm_argmax, color='red', linestyle='--', label=f"argmax = {bpm_argmax:.2f} BPM")
+    # plt.axvline(bpm_weighted, color='green', linestyle='--', label=f"weighted = {bpm_weighted:.2f} BPM")
+    # plt.title("Frequency Domain (FFT)-HR")
+    # plt.xlabel("BPM")
+    # plt.ylabel("Power")
+    # plt.grid(True)
+    # plt.legend()
+    # plt.xlim(50, 130)
+    # plt.tight_layout()
+    # plt.show()
+
+    print(f"[argmax] 主頻 BPM：{bpm_argmax:.2f}")
+    print(f"[加權平均] 主頻 BPM：{bpm_weighted:.2f}")
+
+    # 建議回傳加權平均值作為主要估算結果
+    return bpm_argmax,bpm_weighted
 
     
 
@@ -958,6 +1054,7 @@ def preProcessing_timeDomain(listTemp):
     # #將listTemp轉換為np.array
     # listTemp = np.array(listTemp)
     # #print(f"檢查：\n {listTemp[:5]}")
+
 
     """平滑化1"""
     # window_length 控制平滑範圍大小，數值越大，平滑效果越強。
@@ -999,7 +1096,8 @@ def preProcessing_timeDomain(listTemp):
     #     # time = np.linspace(0, 0.02, 52)
 
     #     # bandPass_filter(signal, fs=12, lowcut=0.01, highcut=3, order=2):
-        listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 3 ,2)
+        listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 3 ,2) # 健康人用
+        # listTemp[:,0]= bandPass_filter(listTemp[:,0], 8, 0.03, 3 ,2) # 病人用
 
     #     # 帶通濾波處理
         # plot_data(listTemp,"Bandpass Filtering")
@@ -1010,7 +1108,8 @@ def preProcessing_timeDomain(listTemp):
     """線性插值法+漢明窗"""
     try:
         # 使用 listTemp[:, 0] (值) 和 listTemp[:, 1] (時間)
-        listTemp = interpolated_signal(listTemp[:, 0], listTemp[:, 1], 12)
+        listTemp = interpolated_signal(listTemp[:, 0], listTemp[:, 1], 12) # 健康人用
+        # listTemp = interpolated_signal(listTemp[:, 0], listTemp[:, 1], 8) # 病人用
         #plot_data(listTemp, "Interpolated")
 
         # # # 標準化插值結果(為何要兩個norm)
@@ -1020,20 +1119,19 @@ def preProcessing_timeDomain(listTemp):
         print("interpolated點數:", len(listTemp))
         # plot_data(listTemp, "interpolated")
         
-
     except Exception as e:
         print(f"Interpolated fail: {e}")
 
-    #補點
-    # even_times = np.linspace(listTemp[0,1], listTemp[len(listTemp)-1,1], 100)
-    # listTemp[:,0] = np.interp(even_times, listTemp[:,1], listTemp[:,0])
-    # listTemp[:,0]= np.hamming(100) * listTemp[:,0] 
-    # listTemp[:,0] = (listTemp[:,0] - np.mean(listTemp[:,0]))/np.std(listTemp[:,0])
+    # #補點
+    # # even_times = np.linspace(listTemp[0,1], listTemp[len(listTemp)-1,1], 100)
+    # # listTemp[:,0] = np.interp(even_times, listTemp[:,1], listTemp[:,0])
+    # # listTemp[:,0]= np.hamming(100) * listTemp[:,0] 
+    # # listTemp[:,0] = (listTemp[:,0] - np.mean(listTemp[:,0]))/np.std(listTemp[:,0])
                             
-    # listTemp[:,0] = listTemp[:,0]/np.linalg.norm(listTemp[:,0]) 
+    # # listTemp[:,0] = listTemp[:,0]/np.linalg.norm(listTemp[:,0]) 
 
-    #將listTemp轉換為float
-    # listTemp =listTemp.astype(float)
+    # #將listTemp轉換為float
+    # # listTemp =listTemp.astype(float)
 
     
     """平滑化2"""
@@ -1112,23 +1210,23 @@ def preProcessing_freqDomain(listTemp):
     # mode 用於選擇邊界處理方式，默認 'interp'。
     # listTemp[:,0] = scipy.signal.savgol_filter(listTemp[:,0].astype(float), 時窗長度(奇數), 多項式階數)
 
-    try:
-        ## smoothTriangle(data, degree)
-        listTemp[:,0] = smoothTriangle(listTemp[:,0], 5)
-       #plot_data(listTemp,"Smoothing 1 ")
+    # try:
+    #     ## smoothTriangle(data, degree)
+    #     listTemp[:,0] = smoothTriangle(listTemp[:,0], 5)
+    #    #plot_data(listTemp,"Smoothing 1 ")
 
-    except Exception as e:
-        print("Smoothing fail" + str(e))     
+    # except Exception as e:
+    #     print("Smoothing fail" + str(e))     
 
 
     """線性插值法+漢明窗"""
-    try:
-        # 使用 listTemp[:, 0] (值) 和 listTemp[:, 1] (時間)
-        listTemp = interpolated_signal(listTemp[:, 0], listTemp[:, 1], 12)
-        #plot_data(listTemp, "Interpolated")
+    # try:
+    #     # 使用 listTemp[:, 0] (值) 和 listTemp[:, 1] (時間)
+    #     listTemp = interpolated_signal(listTemp[:, 0], listTemp[:, 1], 12)
+    #     #plot_data(listTemp, "Interpolated")
 
-    except Exception as e:
-        print(f"Interpolated fail: {e}")
+    # except Exception as e:
+    #     print(f"Interpolated fail: {e}")
 
     #補點
     # even_times = np.linspace(listTemp[0,1], listTemp[len(listTemp)-1,1], 100)
@@ -1143,13 +1241,13 @@ def preProcessing_freqDomain(listTemp):
 
     
     """平滑化2"""
-    try:
-        listTemp[:,0] = smoothTriangle(listTemp[:,0], 5)
+    # try:
+    #     listTemp[:,0] = smoothTriangle(listTemp[:,0], 5)
         
-        #將信號畫成圖型 
-        #plot_data(listTemp,"Smoothing 2")
-    except Exception as e:
-        print("Smoothing 2 fail \n" + str(e))   
+    #     #將信號畫成圖型 
+    #     #plot_data(listTemp,"Smoothing 2")
+    # except Exception as e:
+    #     print("Smoothing 2 fail \n" + str(e))   
 
 
     """基線飄移(校準)"""
@@ -1179,35 +1277,36 @@ def preProcessing_freqDomain(listTemp):
 
 
     ##基線校正 03 (有時窗)
-    try:
-        # listTemp = baseline_removal2(listTemp,100)
-        listTemp = baseline_removal(listTemp,2,100)
+    # try:
+    #     # listTemp = baseline_removal2(listTemp,100)
+    #     listTemp = baseline_removal(listTemp,2,100)
 
-        #plot_data(listTemp," Baseline correction")
-    except Exception as e:
-        print("Baseline correction fail" + str(e))
+    #     #plot_data(listTemp," Baseline correction")
+    # except Exception as e:
+    #     print("Baseline correction fail" + str(e))
 
 
     """平滑化3"""
-    try:
-        listTemp[:,0] = smoothTriangle(listTemp[:,0], 5)
+    # try:
+    #     listTemp[:,0] = smoothTriangle(listTemp[:,0], 5)
         
-        #將信號畫成圖型 
-        #plot_data(listTemp,"Smoothing 3")
-    except Exception as e:
-        print("Smoothing 3 fail \n" + str(e))
+    #     #將信號畫成圖型 
+    #     #plot_data(listTemp,"Smoothing 3")
+    # except Exception as e:
+    #     print("Smoothing 3 fail \n" + str(e))
 
 
     """歸一化"""
-    try:
-        listTemp = normalization(listTemp)
-        #plot_data(listTemp,"Normalization")
-    except Exception as e:
-            print("Normalization fail" + str(e))
+    # try:
+    #     listTemp = normalization(listTemp)
+    #     #plot_data(listTemp,"Normalization")
+    # except Exception as e:
+    #         print("Normalization fail" + str(e))
 
     """帶通(0.03-0.4)"""
     try:
-        listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 0.4 ,2)
+        listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.003, 0.4 ,2) # 健康人用
+        # listTemp[:,0]= bandPass_filter(listTemp[:,0], 8, 0.003, 0.4 ,2) # 病人用
     except Exception as e:
         print("Bandpass Filtering fail" + str(e))
         
@@ -1227,7 +1326,10 @@ def time_features_cal(listTemp):
         # print("---波峰索引值(最多2筆資料)：", peaks_list)
         
         # 計算ppi --> 計算sdnn. rmssd
-        ppi_values = ppi_cal(peaks, 15)
+        # ppi_values, hr_t = ppi_cal(peaks, 15)
+
+        ppi_values = ppi_cal(peaks, 12) # 健康人用
+        # ppi_values = ppi_cal(peaks, 8) # 病人用
         sdnn, rmssd = sdnn_rmssd(ppi_values)
         print("\n--SDNN：", sdnn)
         print("--RMSSD:", rmssd, "\n")
@@ -1320,6 +1422,7 @@ def time_features_cal(listTemp):
         "aRatio_2": aRatio_2,
         "sampen": sampen,
         "apen": apen
+        # "hr_t": hr_t
     }
 
 
@@ -1327,51 +1430,63 @@ def freq_features_cal(listTemp):
     nlf = nhf = lf_hf_ratio = None
 
     """頻域特徵計算"""
+
     try:
         
         """計算LF、HF、LF/HF"""
         #plot_data(listTemp, "bandpass-LF+HF")
         # 傅立葉轉換
-        fft_freq, fft_power = fft_cal(listTemp,12)
+        fft_freq, fft_power = fft_cal(listTemp)
         # 計算LF、HF、LF/HF
         nlf, nhf, lf_hf_ratio = lfhf_cal(fft_freq, fft_power)
 
     except Exception as e:
         print("LF,HF, LF/HF Calculation fail"+ str(e))
 
-    try:
-        """計算HR"""
-        # 帶通(0.6-3)
-        # listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 0.4 ,2)
-        #plot_data(listTemp, "bandpass-hrrrrr")
-        # 傅立葉轉換+ HR計算
-        heart_rate_bpm = hr_cal(fft_freq,fft_power)
-        heart_rate_bpm = round(heart_rate_bpm,3)
+    # try:
+    #     """計算HR"""
+    #     # 帶通(0.6-3)
+    #     # listTemp[:,0]= bandPass_filter(listTemp[:,0], 12, 0.03, 0.4 ,2)
+    #     #plot_data(listTemp, "bandpass-hrrrrr")
+    #     # 傅立葉轉換+ HR計算
+       
+    #     heart_rate_bpm1, hr_weighted1 = hr_cal(listTemp)
+    #     heart_rate_bpm1 = round(heart_rate_bpm1,3)
+    #     hr_weighted1 = round(hr_weighted1,3)
+
+    #     heart_rate_bpm2, hr_weighted2 = hrhr_cal(fft_freq,fft_power)
+    #     heart_rate_bpm2 = round(heart_rate_bpm2,3)
+    #     hr_weighted2 = round(hr_weighted2,3)
+
     
-    except Exception as e:
-        print("HR Calculation fail"+ str(e))
+    # except Exception as e:
+    #     print("HR Calculation fail"+ str(e))
 
     # 每次計算完一筆資料後
     freqFeatures = [
         nlf, nhf, lf_hf_ratio, 
-        heart_rate_bpm
+        # heart_rate_bpm1, hr_weighted1,
+        # heart_rate_bpm2, hr_weighted2
     ]
     
     freqFeatures_list = []
     freqFeatures_list.append(freqFeatures)
 
-    print("\n--頻域特徵:",
-          "\n nLF:",nlf,
-          "\n nHF:", nhf,
-          "\n LF/HF:",lf_hf_ratio,
-          "\n heart_rate:", heart_rate_bpm,
-          )
+    # print("\n--頻域特徵:",
+    #       "\n nLF:",nlf,
+    #       "\n nHF:", nhf,
+    #       "\n LF/HF:",lf_hf_ratio,
+    #     #   "\n heart_rate:", heart_rate_bpm1,
+    #       )
 
     return {
         "nLF":nlf,
         "nHF":nhf,
         "LF/HF":lf_hf_ratio,
-        "heart_rate":heart_rate_bpm
+        # "heart_rate1":heart_rate_bpm1,
+        # "hr_weighted1":hr_weighted1,
+        # "heart_rate2":heart_rate_bpm2,
+        # "hr_weighted2":hr_weighted2
     }
 
 # def main_all_features(listTemp):
